@@ -1,0 +1,56 @@
+# Maven
+/target/
+target/
+*.jar
+*.war
+*.ear
+*.class
+
+# IDE
+.idea/
+*.iml
+*.iws
+*.ipr
+.vscode/
+.settings/
+.project
+.classpath
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Logs
+*.log
+logs/
+
+# Spring Boot
+application-*.properties
+application-*.yml
+!application.yml
+!application-dev.yml
+!application-docker.yml
+
+# Database
+*.db
+*.sqlite
+
+# Temporary files
+*.tmp
+*.temp
+*~
+
+# Package Files
+*.tar.gz
+*.zip
+
+# Docker
+.dockerignore
+
