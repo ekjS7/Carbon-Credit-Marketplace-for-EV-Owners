@@ -33,5 +33,8 @@ public class User {
     @Column(name = "created_at", nullable = false, updatable = false)
     @CreationTimestamp
     private LocalDateTime createdAt;
+    
+    @Column(name = "carbon_balance", nullable = false)
+    private Double carbonBalance = 0.0;
 }
 
