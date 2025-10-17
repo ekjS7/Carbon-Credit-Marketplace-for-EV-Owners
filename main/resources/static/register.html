@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Register</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
+    <style>
+        body { background-color: #f5f5f7; }
+        .container-narrow { max-width: 420px; }
+    </style>
+    <script>
+        async function submitRegister(event) {
+            event.preventDefault();
+            const username = document.getElementById('username').value.trim();
+            const email = document.getElementById('email').value.trim();
+            const password = document.getElementById('password').value;
+            const confirm = document.getElementById('confirm').value;
+
+            const alertBox = document.getElementById('alert');
+            alertBox.classList.add('d-none');
+            alertBox.classList.remove('alert-success','alert-danger');
+
+            if (!username || !email || !password) {
+                alertBox.textContent = 'All fields are required';
+                alertBox.classList.add('alert','alert-danger');
+                alertBox.classList.remove('d-none');
+                return;
+            }
+
+            if (password !== confirm) {
+                alertBox.textContent = 'Passwords do not match';
+                alertBox.classList.add('alert','alert-danger');
+                alertBox.classList.remove('d-none');
+                return;
+            }
+
+            try {
+                const res = await fetch('/api/auth/register', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, email, password })
+                });
+                const text = await res.text();
+                if (res.ok) {
+                    alertBox.textContent = 'Registered successfully. You can now log in.';
+                    alertBox.classList.add('alert','alert-success');
+                    alertBox.classList.remove('d-none');
+                    setTimeout(() => { window.location.href = '/login'; }, 1000);
+                } else {
+                    alertBox.textContent = text || 'Registration failed';
+                    alertBox.classList.add('alert','alert-danger');
+                    alertBox.classList.remove('d-none');
+                }
+            } catch (e) {
+                alertBox.textContent = 'Network error';
+                alertBox.classList.add('alert','alert-danger');
+                alertBox.classList.remove('d-none');
+            }
+        }
+    </script>
+    </head>
+<body>
+<div class="container container-narrow py-5">
+    <h2 class="mb-4 text-center">Create account</h2>
+    <div id="alert" class="d-none" role="alert"></div>
+    <form onsubmit="submitRegister(event)">
+        <div class="mb-3">
+            <label for="username" class="form-label">Username</label>
+            <input type="text" class="form-control" id="username" placeholder="Your name">
+        </div>
+        <div class="mb-3">
+            <label for="email" class="form-label">Email</label>
+            <input type="email" class="form-control" id="email" placeholder="name@example.com">
+        </div>
+        <div class="mb-3">
+            <label for="password" class="form-label">Password</label>
+            <input type="password" class="form-control" id="password">
+        </div>
+        <div class="mb-4">
+            <label for="confirm" class="form-label">Confirm password</label>
+            <input type="password" class="form-control" id="confirm">
+        </div>
+        <button type="submit" class="btn btn-primary w-100">Register</button>
+        <div class="text-center mt-3">
+            <a href="/login-page">Back to login</a>
+        </div>
+    </form>
+  </div>
+</body>
+</html>
+
+
