@@ -1,30 +1,40 @@
 package com.example.demo.service;
 
-import com.example.demo.entity.EmissionData;
+import com.example.demo.entity.Co2Reduction;
+import com.example.demo.repository.Co2Repository;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-import java.util.List;
 
 @Service
 public class Co2Service {
 
-    // Lượng CO2 trung bình xe xăng thải ra (g/km)
-    private static final double GASOLINE_CAR_EMISSION = 192.0;
+    @Autowired
+    private Co2Repository co2Repository;
 
-    // Tính lượng CO2 tránh phát thải (kg)
-    public double calculateAvoidedEmission(EmissionData data) {
-        double evEmission = data.getDistanceKm() * data.getEfficiency() * data.getEmissionFactor();
-        double gasEmission = data.getDistanceKm() * GASOLINE_CAR_EMISSION / 1000; // g → kg
-        return gasEmission - evEmission;
-    }
+    public String processEmission(double baseline, double actual, boolean certified, String userId) {
+        double reduction = baseline - actual;
+        if (baseline < actual) {
+            return "Dữ liệu không hợp lệ: phát thải thực tế lớn hơn cơ sở.";
+        }
 
-    // Kiểm tra đã đạt 1 tấn CO₂ giảm phát thải chưa
-    public boolean hasReachedOneTon(List<EmissionData> records) {
-        double total = records.stream().mapToDouble(this::calculateAvoidedEmission).sum();
-        return total >= 1000.0;
-    }
+        String status;
+        if (reduction < 1000) {
+            status = "REJECTED";
+        } else if (!certified) {
+            status = "REJECTED";
+        } else {
+            status = "APPROVED";
+        }
 
-    // Tính tổng lượng giảm phát thải
-    public double totalAvoidedEmission(List<EmissionData> records) {
-        return records.stream().mapToDouble(this::calculateAvoidedEmission).sum();
+        Co2Reduction record = new Co2Reduction();
+        record.setUserId(userId);
+        record.setBaseline(baseline);
+        record.setActual(actual);
+        record.setReduction(reduction);
+        record.setCertified(certified);
+        record.setStatus(status);
+        co2Repository.save(record);
+
+        return "Kết quả: " + status + " (Giảm " + reduction + " kg CO2)";
     }
 }
