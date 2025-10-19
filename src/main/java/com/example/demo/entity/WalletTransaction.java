@@ -22,7 +22,7 @@ public class WalletTransaction {
     @Column(name = "user_id", nullable = false)
     private Long userId;
     
-    @Column(nullable = false)
+    @Column(nullable = false, columnDefinition = "varchar(255)")
     @Enumerated(EnumType.STRING)
     private TransactionType type;
     
