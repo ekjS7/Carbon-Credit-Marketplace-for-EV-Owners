@@ -7,8 +7,9 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.CreationTimestamp;
-
+import java.util.List;
 import java.time.LocalDateTime;
+import java.math.BigDecimal;
 
 @Entity
 @Table(name = "users")
@@ -34,7 +35,19 @@ public class User {
     @CreationTimestamp
     private LocalDateTime createdAt;
     
-    @Column(name = "carbon_balance", nullable = false)
-    private Double carbonBalance = 0.0;
+    @Column(name = "carbon_balance", nullable = false, precision = 19, scale = 4)
+    private BigDecimal carbonBalance = BigDecimal.ZERO;
+
+    @Enumerated(EnumType.STRING)
+    private Role role; // có thể là ADMIN, NORMAL_USER, CVA,...
+
+    @OneToMany(mappedBy = "seller")
+    private List<Listing> listings;
+
+    @OneToMany(mappedBy = "buyer")
+    private List<Transaction> purchases;
+
+    @OneToOne(mappedBy = "user", cascade = CascadeType.ALL)
+    private Wallet wallet;
 }
 

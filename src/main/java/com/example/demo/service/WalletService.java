@@ -9,6 +9,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
+
 @Service
 @RequiredArgsConstructor
 @Slf4j
@@ -25,10 +27,10 @@ public class WalletService {
      * @return The created WalletTransaction
      */
     @Transactional
-    public WalletTransaction credit(Long userId, Double amount, String description) {
+    public WalletTransaction credit(Long userId, BigDecimal amount, String description) {
         log.info("Crediting {} carbon credits to user ID: {}", amount, userId);
         
-        if (amount <= 0) {
+        if (amount.compareTo(BigDecimal.ZERO) <= 0) {
             throw new IllegalArgumentException("Credit amount must be positive");
         }
         
@@ -36,17 +38,14 @@ public class WalletService {
                 .orElseThrow(() -> new RuntimeException("User not found with ID: " + userId));
         
         // Update user balance
-        Double newBalance = user.getCarbonBalance() + amount;
+        BigDecimal newBalance = user.getCarbonBalance().add(amount);
         user.setCarbonBalance(newBalance);
         userRepository.save(user);
         
         // Create transaction record
         WalletTransaction transaction = new WalletTransaction();
-        transaction.setUserId(userId);
         transaction.setType(WalletTransaction.TransactionType.CREDIT);
         transaction.setAmount(amount);
-        transaction.setDescription(description);
-        transaction.setBalanceAfter(newBalance);
         
         WalletTransaction savedTransaction = walletTransactionRepository.save(transaction);
         log.info("Credit transaction completed. New balance: {}", newBalance);
@@ -62,10 +61,10 @@ public class WalletService {
      * @return The created WalletTransaction
      */
     @Transactional
-    public WalletTransaction debit(Long userId, Double amount, String description) {
+    public WalletTransaction debit(Long userId, BigDecimal amount, String description) {
         log.info("Debiting {} carbon credits from user ID: {}", amount, userId);
         
-        if (amount <= 0) {
+        if (amount.compareTo(BigDecimal.ZERO) <= 0) {
             throw new IllegalArgumentException("Debit amount must be positive");
         }
         
@@ -73,24 +72,21 @@ public class WalletService {
                 .orElseThrow(() -> new RuntimeException("User not found with ID: " + userId));
         
         // Check sufficient balance
-        if (user.getCarbonBalance() < amount) {
+        if (user.getCarbonBalance().compareTo(amount) < 0) {
             throw new IllegalArgumentException(
-                    String.format("Insufficient balance. Current: %.2f, Required: %.2f", 
+                    String.format("Insufficient balance. Current: %s, Required: %s", 
                             user.getCarbonBalance(), amount));
         }
         
         // Update user balance
-        Double newBalance = user.getCarbonBalance() - amount;
+        BigDecimal newBalance = user.getCarbonBalance().subtract(amount);
         user.setCarbonBalance(newBalance);
         userRepository.save(user);
         
         // Create transaction record
         WalletTransaction transaction = new WalletTransaction();
-        transaction.setUserId(userId);
         transaction.setType(WalletTransaction.TransactionType.DEBIT);
         transaction.setAmount(amount);
-        transaction.setDescription(description);
-        transaction.setBalanceAfter(newBalance);
         
         WalletTransaction savedTransaction = walletTransactionRepository.save(transaction);
         log.info("Debit transaction completed. New balance: {}", newBalance);
@@ -103,7 +99,7 @@ public class WalletService {
      * @param userId The user's ID
      * @return The current carbon balance
      */
-    public Double getBalance(Long userId) {
+    public BigDecimal getBalance(Long userId) {
         log.info("Getting balance for user ID: {}", userId);
         
         User user = userRepository.findById(userId)

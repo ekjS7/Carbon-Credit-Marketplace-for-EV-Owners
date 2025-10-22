@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.math.BigDecimal;
 
 @RestController
 @RequestMapping("/api/wallet")
@@ -28,7 +29,7 @@ public class WalletController {
     public ResponseEntity<?> getBalance(@PathVariable Long userId) {
         try {
             log.info("Getting balance for user ID: {}", userId);
-            Double balance = walletService.getBalance(userId);
+            BigDecimal balance = walletService.getBalance(userId);
             
             Map<String, Object> response = new HashMap<>();
             response.put("userId", userId);
@@ -52,7 +53,7 @@ public class WalletController {
     @PostMapping("/{userId}/credit")
     public ResponseEntity<?> credit(
             @PathVariable Long userId,
-            @RequestParam Double amount,
+            @RequestParam BigDecimal amount,
             @RequestParam(required = false, defaultValue = "Carbon credit added") String description) {
         try {
             log.info("Credit request for user ID {}: amount={}", userId, amount);
@@ -79,7 +80,7 @@ public class WalletController {
     @PostMapping("/{userId}/debit")
     public ResponseEntity<?> debit(
             @PathVariable Long userId,
-            @RequestParam Double amount,
+            @RequestParam BigDecimal amount,
             @RequestParam(required = false, defaultValue = "Carbon credit deducted") String description) {
         try {
             log.info("Debit request for user ID {}: amount={}", userId, amount);

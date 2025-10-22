@@ -70,6 +70,13 @@
             <scope>provided</scope>
         </dependency>
 
+        <!-- 📚 Swagger/OpenAPI Documentation -->
+        <dependency>
+            <groupId>org.springdoc</groupId>
+            <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+            <version>2.6.0</version>
+        </dependency>
+
         <!-- 🧪 Testing -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -109,6 +116,21 @@
                             <version>1.18.32</version>
                         </path>
                     </annotationProcessorPaths>
+                </configuration>
+            </plugin>
+
+            <!-- 🐦 Flyway Migration Plugin -->
+            <plugin>
+                <groupId>org.flywaydb</groupId>
+                <artifactId>flyway-maven-plugin</artifactId>
+                <version>9.22.3</version>
+                <configuration>
+                    <url>jdbc:mysql://localhost:3306/appdb</url>
+                    <user>appuser</user>
+                    <password>secret</password>
+                    <locations>
+                        <location>classpath:db/migration</location>
+                    </locations>
                 </configuration>
             </plugin>
         </plugins>

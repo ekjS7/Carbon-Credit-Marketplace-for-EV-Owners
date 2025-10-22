@@ -6,6 +6,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.CreationTimestamp;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Entity
@@ -14,34 +15,23 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 public class WalletTransaction {
-    
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-    
-    @Column(name = "user_id", nullable = false)
-    private Long userId;
-    
-    @Column(nullable = false, columnDefinition = "varchar(255)")
-    @Enumerated(EnumType.STRING)
-    private TransactionType type;
-    
-    @Column(nullable = false)
-    private Double amount;
-    
-    @Column(columnDefinition = "TEXT")
-    private String description;
-    
-    @Column(name = "balance_after", nullable = false)
-    private Double balanceAfter;
-    
-    @Column(name = "created_at", nullable = false, updatable = false)
-    @CreationTimestamp
-    private LocalDateTime createdAt;
-    
-    public enum TransactionType {
-        CREDIT,
-        DEBIT
-    }
-}
 
+    @Enumerated(EnumType.STRING)              // ✅ thêm
+    @Column(nullable = false, length = 20, columnDefinition = "VARCHAR(20)")
+    private TransactionType type;             // CREDIT / DEBIT
+
+    @Column(nullable = false, precision = 19, scale = 4)   // dùng BigDecimal nếu được
+    private BigDecimal amount;
+
+    @CreationTimestamp
+    @Column(name = "created_at", nullable = false, updatable = false)
+    private LocalDateTime createdAt;
+
+    @ManyToOne @JoinColumn(name = "wallet_id", nullable = false)
+    private Wallet wallet;
+
+    public enum TransactionType { CREDIT, DEBIT }
+}
