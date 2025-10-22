@@ -6,6 +6,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
+
 @Service
 @RequiredArgsConstructor
 public class CreditService {
@@ -36,9 +38,15 @@ public class CreditService {
         // Tạo bản ghi CarbonCredit
         var credit = carbonCreditService.issueCredit(request);
 
+        // ⚙️ Convert Double -> BigDecimal để khớp với WalletService.credit()
+        BigDecimal amount = BigDecimal.valueOf(credit.getAmount());
+
         // Cộng tín chỉ vào Wallet
-        walletService.credit(request.getOwnerId(), credit.getAmount(),
-                "Issued from CreditRequest#" + request.getId());
+        walletService.credit(
+                request.getOwnerId(),
+                amount,
+                "Issued from CreditRequest#" + request.getId()
+        );
 
         return request;
     }
