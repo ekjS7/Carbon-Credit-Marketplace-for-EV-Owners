@@ -7,7 +7,7 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.CreationTimestamp;
-import java.util.List;
+import java.util.*;
 import java.time.LocalDateTime;
 import java.math.BigDecimal;
 
@@ -17,29 +17,35 @@ import java.math.BigDecimal;
 @NoArgsConstructor
 @AllArgsConstructor
 public class User {
-    
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-    
+
     @Column(unique = true, nullable = false)
     @Email(message = "Email should be valid")
     @NotBlank(message = "Email is required")
     private String email;
-    
+
     @Column(name = "full_name", nullable = false)
     @NotBlank(message = "Full name is required")
     private String fullName;
-    
+
     @Column(name = "created_at", nullable = false, updatable = false)
     @CreationTimestamp
     private LocalDateTime createdAt;
-    
+
     @Column(name = "carbon_balance", nullable = false, precision = 19, scale = 4)
     private BigDecimal carbonBalance = BigDecimal.ZERO;
 
-    @Enumerated(EnumType.STRING)
-    private Role role; // có thể là ADMIN, NORMAL_USER, CVA,...
+    // ✅ Many-to-Many Role Relationship
+    @ManyToMany(fetch = FetchType.EAGER)
+    @JoinTable(
+            name = "user_roles",
+            joinColumns = @JoinColumn(name = "user_id"),
+            inverseJoinColumns = @JoinColumn(name = "role_id")
+    )
+    private Set<Role> roles = new HashSet<>();
 
     @OneToMany(mappedBy = "seller")
     private List<Listing> listings;
@@ -49,5 +55,9 @@ public class User {
 
     @OneToOne(mappedBy = "user", cascade = CascadeType.ALL)
     private Wallet wallet;
-}
 
+    // Helper method: kiểm tra user có role nào đó không
+    public boolean hasRole(String roleName) {
+        return roles.stream().anyMatch(role -> role.getName().equalsIgnoreCase(roleName));
+    }
+}
