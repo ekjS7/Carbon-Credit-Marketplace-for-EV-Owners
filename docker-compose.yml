@@ -43,6 +43,8 @@ services:
       - "8082:8080"
     depends_on:
       - db
+    volumes:
+      - ./uploads:/app/uploads
     networks:
       - app-network
     restart: unless-stopped

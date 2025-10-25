@@ -25,3 +25,5 @@ logging:
     org.springframework.web: INFO
     org.flywaydb: INFO
 
+
+
