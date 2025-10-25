@@ -1,15 +1,33 @@
 package com.example.demo.entity;
 
-import jakarta.persistence.*;
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+
+import org.hibernate.annotations.CreationTimestamp;
+
+import com.fasterxml.jackson.annotation.JsonIgnore;
+
+import jakarta.persistence.CascadeType;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.JoinTable;
+import jakarta.persistence.ManyToMany;
+import jakarta.persistence.OneToMany;
+import jakarta.persistence.OneToOne;
+import jakarta.persistence.Table;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import org.hibernate.annotations.CreationTimestamp;
-import java.util.*;
-import java.time.LocalDateTime;
-import java.math.BigDecimal;
 
 @Entity
 @Table(name = "users")
@@ -37,6 +55,11 @@ public class User {
 
     @Column(name = "carbon_balance", nullable = false, precision = 19, scale = 4)
     private BigDecimal carbonBalance = BigDecimal.ZERO;
+
+    @Column(nullable = false)
+    @JsonIgnore
+    @NotBlank(message = "Password is required")
+    private String password;
 
     // ✅ Many-to-Many Role Relationship
     @ManyToMany(fetch = FetchType.EAGER)
