@@ -15,23 +15,31 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 public class WalletTransaction {
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Enumerated(EnumType.STRING)              // ✅ thêm
-    @Column(nullable = false, length = 20, columnDefinition = "VARCHAR(20)")
-    private TransactionType type;             // CREDIT / DEBIT
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    private TransactionType type; // CREDIT / DEBIT
 
-    @Column(nullable = false, precision = 19, scale = 4)   // dùng BigDecimal nếu được
+    @Column(nullable = false, precision = 19, scale = 4)
     private BigDecimal amount;
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
-    @ManyToOne @JoinColumn(name = "wallet_id", nullable = false)
+    // Liên kết với ví
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "wallet_id", nullable = false)
     private Wallet wallet;
 
-    public enum TransactionType { CREDIT, DEBIT }
+    @Column(length = 255)
+    private String description;
+
+    public enum TransactionType {
+        CREDIT, DEBIT
+    }
 }
