@@ -9,6 +9,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/cva")
+@CrossOrigin(origins = "*") // Cho phép Postman / Frontend gọi
 public class CvaController {
 
     private final CvaService cvaService;
@@ -24,27 +25,19 @@ public class CvaController {
         return cvaService.getPendingRequests();
     }
 
-    // Lấy thông tin yêu cầu cụ thể
-    @GetMapping("/{id}")
-    public CreditRequest getRequestById(@PathVariable Long id) {
-        return cvaService.getRequestById(id);
-    }
-
-    // Duyệt yêu cầu (APPROVED)
-    @PostMapping("/{id}/approve")
+    // CVA duyệt yêu cầu (approve)
+    @PutMapping("/approve/{id}")
     public CreditRequest approveRequest(
             @PathVariable Long id,
-            @RequestParam(required = false) String notes
-    ) {
+            @RequestParam(required = false) String notes) {
         return cvaService.approveRequest(id, notes);
     }
 
-    // Từ chối yêu cầu (REJECTED)
-    @PostMapping("/{id}/reject")
+    // CVA từ chối yêu cầu (reject)
+    @PutMapping("/reject/{id}")
     public CreditRequest rejectRequest(
             @PathVariable Long id,
-            @RequestParam(required = false) String notes
-    ) {
+            @RequestParam(required = false) String notes) {
         return cvaService.rejectRequest(id, notes);
     }
 }
