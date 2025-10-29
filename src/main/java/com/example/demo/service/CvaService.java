@@ -6,6 +6,6 @@ import java.util.List;
 public interface CvaService {
     List<CreditRequest> getPendingRequests();
     CreditRequest getRequestById(Long id);
-    void approveRequest(Long id, Long verifierId);
-    void rejectRequest(Long id, Long verifierId, String reason);
+    CreditRequest approveRequest(Long id, String notes);
+    CreditRequest rejectRequest(Long id, String notes);
 }

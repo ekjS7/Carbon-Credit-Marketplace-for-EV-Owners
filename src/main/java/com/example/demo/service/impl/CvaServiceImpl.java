@@ -7,7 +7,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
-import java.util.Optional;
 
 @Service
 public class CvaServiceImpl implements CvaService {
@@ -25,27 +24,28 @@ public class CvaServiceImpl implements CvaService {
     }
 
     @Override
-    public Optional<CreditRequest> getRequestById(Long id) {
-        return creditRequestRepository.findById(id);
+    public CreditRequest getRequestById(Long id) {
+        return creditRequestRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Request not found"));
     }
 
     @Override
     public CreditRequest approveRequest(Long id, String notes) {
-        CreditRequest request = creditRequestRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Request not found"));
-
+        CreditRequest request = getRequestById(id);
         request.setStatus("APPROVED");
-        request.setNotes(notes);
+        if (notes != null) {
+            request.setNotes(notes);
+        }
         return creditRequestRepository.save(request);
     }
 
     @Override
     public CreditRequest rejectRequest(Long id, String notes) {
-        CreditRequest request = creditRequestRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Request not found"));
-
+        CreditRequest request = getRequestById(id);
         request.setStatus("REJECTED");
-        request.setNotes(notes);
+        if (notes != null) {
+            request.setNotes(notes);
+        }
         return creditRequestRepository.save(request);
     }
 }
