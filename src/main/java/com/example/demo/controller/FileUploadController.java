@@ -8,26 +8,35 @@ import java.io.File;
 import java.io.IOException;
 
 @RestController
-@RequestMapping("/api/files")
+@RequestMapping("/files") 
+@CrossOrigin(origins = "*") 
 public class FileUploadController {
 
-    private static final String UPLOAD_DIR = "/app/uploads";
+    private static final String UPLOAD_DIR = "uploads"; // dùng relative path để chạy cả local và Docker
 
     @PostMapping("/upload")
     public ResponseEntity<String> uploadFile(@RequestParam("file") MultipartFile file) {
         try {
-            // Tạo thư mục lưu file nếu chưa có
             File dir = new File(UPLOAD_DIR);
             if (!dir.exists()) dir.mkdirs();
 
-            // Lưu file vào thư mục uploads
-            String filePath = UPLOAD_DIR + "/" + file.getOriginalFilename();
-            file.transferTo(new File(filePath));
+            File destination = new File(dir, file.getOriginalFilename());
+            file.transferTo(destination);
 
-            return ResponseEntity.ok("File uploaded successfully: " + file.getOriginalFilename());
+            return ResponseEntity.ok("Uploaded: " + file.getOriginalFilename());
         } catch (IOException e) {
-            e.printStackTrace();
-            return ResponseEntity.internalServerError().body("Error uploading file: " + e.getMessage());
+            return ResponseEntity.internalServerError().body("Error: " + e.getMessage());
         }
+    }
+
+    //Thêm API để xem danh sách file 
+    @GetMapping
+    public ResponseEntity<String[]> listFiles() {
+        File dir = new File(UPLOAD_DIR);
+        if (!dir.exists() || dir.listFiles() == null) {
+            return ResponseEntity.ok(new String[]{});
+        }
+        String[] fileNames = dir.list((d, name) -> new File(d, name).isFile());
+        return ResponseEntity.ok(fileNames);
     }
 }
