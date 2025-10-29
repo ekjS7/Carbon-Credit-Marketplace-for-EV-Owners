@@ -51,7 +51,7 @@ public class WalletController {
             wallet.setUser(user);
             user.setWallet(wallet);
 
-            // ✅ Quan trọng: lưu user thay vì wallet
+            // Quan trọng: lưu user thay vì wallet
             userRepository.save(user);
 
             return ResponseEntity.status(HttpStatus.CREATED)
