@@ -36,4 +36,14 @@ public class CreditRequest {
 
     @UpdateTimestamp
     private LocalDateTime updatedAt;
+    private String notes;
+
+    public String getNotes() {
+        return notes;
+    }
+
+    public void setNotes(String notes) {
+        this.notes = notes;
+    }
+
 }
