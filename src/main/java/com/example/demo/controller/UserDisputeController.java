@@ -11,11 +11,10 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
-import java.util.List;
 import java.util.Map;
 
 @RestController
-@RequestMapping("/api/user/disputes")
+@RequestMapping("/api/users/disputes")
 @RequiredArgsConstructor
 @Slf4j
 public class UserDisputeController {
@@ -23,46 +22,61 @@ public class UserDisputeController {
     private final DisputeRepository disputeRepository;
     private final TransactionRepository transactionRepository;
 
-    // 🟢 User mở tranh chấp
+    //User mở tranh chấp mới
     @PostMapping("/open")
-    public ResponseEntity<?> openDispute(@RequestParam Long txId,
-                                         @RequestParam String reason,
-                                         @RequestParam(required = false) String evidenceUrl,
-                                         @RequestParam Long openedByUserId) {
+    public ResponseEntity<?> openDispute(
+            @RequestParam Long txId,
+            @RequestParam String reason,
+            @RequestParam(required = false) String evidenceUrl,
+            @RequestParam Long openedByUserId) {
+
         log.info("User {} mở tranh chấp cho transaction {}", openedByUserId, txId);
 
-        // Kiểm tra giao dịch có tồn tại không
+        // Kiểm tra lý do có hợp lệ
+        if (reason == null || reason.isBlank()) {
+            return ResponseEntity.badRequest().body(Map.of(
+                    "error", "Reason cannot be empty"
+            ));
+        }
+
+        // Kiểm tra transaction có tồn tại không
         return transactionRepository.findById(txId)
                 .<ResponseEntity<?>>map(tx -> {
-                    // Kiểm tra nếu giao dịch đã có tranh chấp trước đó
-                    boolean exists = disputeRepository.existsByTransactionId(txId);
-                    if (exists) {
-                        return ResponseEntity.status(HttpStatus.CONFLICT)
-                                .body(Map.of(
-                                        "error", "Transaction already has an active dispute",
-                                        "transactionId", txId
-                                ));
+
+                    // Kiểm tra transaction đã có dispute chưa
+                    boolean hasActiveDispute = disputeRepository
+                            .findAll()
+                            .stream()
+                            .anyMatch(d -> d.getTransaction().getId().equals(txId)
+                                    && d.getStatus() != DisputeStatus.RESOLVED
+                                    && d.getStatus() != DisputeStatus.REJECTED);
+
+                    if (hasActiveDispute) {
+                        log.warn("Transaction {} already has active dispute", txId);
+                        return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of(
+                                "error", "Transaction already has an active dispute",
+                                "transactionId", txId
+                        ));
                     }
 
-                    // Tạo mới dispute
+                    //Tạo dispute mới
                     Dispute dispute = new Dispute();
                     dispute.setTransaction(tx);
                     dispute.setReason(reason);
                     dispute.setEvidenceUrl(evidenceUrl);
                     dispute.setOpenedByUserId(openedByUserId);
-                    dispute.setOpenedAt(LocalDateTime.now());
-                    dispute.setStatus(DisputeStatus.PENDING);
+                    dispute.setStatus(DisputeStatus.OPEN);
+                    dispute.setCreatedAt(LocalDateTime.now());
 
                     disputeRepository.save(dispute);
 
                     log.info("Dispute {} created successfully for transaction {}", dispute.getId(), txId);
-                    return ResponseEntity.status(HttpStatus.CREATED)
-                            .body(Map.of(
-                                    "message", "Dispute opened successfully",
-                                    "disputeId", dispute.getId(),
-                                    "transactionId", txId,
-                                    "status", "PENDING"
-                            ));
+                    return ResponseEntity.status(HttpStatus.CREATED).body(Map.of(
+                            "message", "Dispute opened successfully",
+                            "disputeId", dispute.getId(),
+                            "transactionId", txId,
+                            "status", dispute.getStatus().name()
+                    ));
                 })
                 .orElseGet(() -> {
                     log.warn("Transaction not found with ID {}", txId);
@@ -71,30 +85,17 @@ public class UserDisputeController {
                 });
     }
 
-    // 🟡 (Optional) User xem lại danh sách tranh chấp của chính mình
-    @GetMapping("/my/{userId}")
-    public ResponseEntity<?> getMyDisputes(@PathVariable Long userId) {
-        log.info("User {} yêu cầu xem danh sách tranh chấp của mình", userId);
-        List<Dispute> disputes = disputeRepository.findByOpenedByUserId(userId);
-
-        if (disputes.isEmpty()) {
-            return ResponseEntity.status(HttpStatus.NO_CONTENT)
-                    .body(Map.of("message", "No disputes found for user " + userId));
-        }
+    //(Optional) Xem danh sách dispute của user
+    @GetMapping
+    public ResponseEntity<?> getUserDisputes(@RequestParam Long userId) {
+        var disputes = disputeRepository.findAll()
+                .stream()
+                .filter(d -> d.getOpenedByUserId().equals(userId))
+                .toList();
 
         return ResponseEntity.ok(Map.of(
-                "total", disputes.size(),
+                "count", disputes.size(),
                 "data", disputes
         ));
-    }
-
-    // 🟡 (Optional) Xem chi tiết 1 tranh chấp cụ thể (nếu cần hiển thị chi tiết trên giao diện)
-    @GetMapping("/{id}")
-    public ResponseEntity<?> getDisputeById(@PathVariable Long id) {
-        log.info("User xem chi tiết tranh chấp {}", id);
-        return disputeRepository.findById(id)
-                .<ResponseEntity<?>>map(ResponseEntity::ok)
-                .orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND)
-                        .body(Map.of("error", "Dispute not found with ID " + id)));
     }
 }

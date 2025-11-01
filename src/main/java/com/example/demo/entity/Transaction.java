@@ -53,4 +53,14 @@ public class Transaction {
     public enum TransactionStatus {
         PENDING, CONFIRMED, CANCELLED, COMPLETED
     }
+
+    public void setStatus(String string) {
+        // TODO Auto-generated method stub
+        throw new UnsupportedOperationException("Unimplemented method 'setStatus'");
+    }
+
+    public void setStatus(TransactionStatus cancelled) {
+        // TODO Auto-generated method stub
+        throw new UnsupportedOperationException("Unimplemented method 'setStatus'");
+    }
 }

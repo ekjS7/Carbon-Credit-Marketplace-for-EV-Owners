@@ -4,12 +4,10 @@ import com.example.demo.entity.Transaction;
 import com.example.demo.repository.TransactionRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
+import org.springframework.http.*;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 @RestController
 @RequestMapping("/api/admin/transactions")
@@ -19,10 +17,10 @@ public class AdminTransactionController {
 
     private final TransactionRepository transactionRepository;
 
-    // Lấy tất cả transactions
     @GetMapping
     public ResponseEntity<?> getAllTransactions() {
         log.info("Admin - Get all transactions");
+
         List<Transaction> transactions = transactionRepository.findAll();
 
         if (transactions.isEmpty()) {
@@ -30,38 +28,42 @@ public class AdminTransactionController {
                     .body(Map.of("message", "No transactions found"));
         }
 
-        return ResponseEntity.ok(Map.of(
-                "message", "Fetched all transactions successfully",
-                "total", transactions.size(),
-                "data", transactions
-        ));
+        // ✅ Chuyển sang DTO thủ công (loại bỏ proxy)
+        List<Map<String, Object>> data = new ArrayList<>();
+
+        for (Transaction tx : transactions) {
+            Map<String, Object> dto = new LinkedHashMap<>();
+
+            dto.put("id", tx.getId());
+            dto.put("listingId", safeGetId(() -> tx.getListing().getId()));
+            dto.put("buyerId", safeGetId(() -> tx.getBuyer().getId()));
+            dto.put("sellerId", safeGetId(() -> tx.getSeller().getId()));
+            dto.put("amount", tx.getAmount());
+            dto.put("status", tx.getStatus() != null ? tx.getStatus().toString() : null);
+            dto.put("createdAt", tx.getCreatedAt());
+
+            data.add(dto);
+        }
+
+        Map<String, Object> response = new LinkedHashMap<>();
+        response.put("message", "Fetched all transactions successfully");
+        response.put("total", data.size());
+        response.put("data", data);
+
+        return ResponseEntity.ok(response);
     }
 
-    //Hủy (cancel) giao dịch
-    @PutMapping("/{id}/cancel")
-    public ResponseEntity<?> cancelTransaction(@PathVariable Long id) {
-        log.info("Admin - Cancel transaction id: {}", id);
+    // 🧩 Hàm helper tránh lỗi LazyInitialization
+    private Object safeGetId(Supplier<Object> supplier) {
+        try {
+            return supplier.get();
+        } catch (Exception e) {
+            return null;
+        }
+    }
 
-        return transactionRepository.findById(id)
-                .<ResponseEntity<?>>map(tx -> {
-                    if (tx.getStatus() == Transaction.TransactionStatus.CANCELLED) {
-                        return ResponseEntity.badRequest()
-                                .body(Map.of("error", "Transaction is already cancelled"));
-                    }
-
-                    tx.setStatus(Transaction.TransactionStatus.CANCELLED);
-                    transactionRepository.save(tx);
-
-                    log.info("Transaction {} cancelled successfully", id);
-                    return ResponseEntity.ok(Map.of(
-                            "message", "Transaction cancelled successfully",
-                            "transaction", tx
-                    ));
-                })
-                .orElseGet(() -> {
-                    log.warn("Transaction not found with ID: {}", id);
-                    return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                            .body(Map.of("error", "Transaction not found with ID: " + id));
-                });
+    @FunctionalInterface
+    private interface Supplier<T> {
+        T get();
     }
 }

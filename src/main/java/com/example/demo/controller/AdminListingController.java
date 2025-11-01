@@ -4,12 +4,10 @@ import com.example.demo.entity.Listing;
 import com.example.demo.repository.ListingRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
+import org.springframework.http.*;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 @RestController
 @RequestMapping("/api/admin/listings")
@@ -19,29 +17,33 @@ public class AdminListingController {
 
     private final ListingRepository listingRepository;
 
-    //Lấy tất cả listings
     @GetMapping
-    public ResponseEntity<List<Listing>> getAllListings() {
-        log.info("Admin - Get all listings");
-        return ResponseEntity.ok(listingRepository.findAll());
+    public ResponseEntity<?> getAllListings() {
+        List<Listing> listings = listingRepository.findAll();
+        if (listings.isEmpty())
+            return ResponseEntity.status(HttpStatus.NO_CONTENT)
+                    .body(Map.of("message", "No listings found"));
+
+        List<Map<String, Object>> data = listings.stream().map(l -> Map.of(
+                "id", l.getId(),
+                "price", l.getPrice(),
+                "quantity", l.getQuantity(),
+                "status", l.getStatus().toString(),
+                "sellerId", l.getSeller() != null ? l.getSeller().getId() : null
+        )).toList();
+
+        return ResponseEntity.ok(Map.of("total", data.size(), "data", data));
     }
 
-    //Disable 1 listing (chuyển sang trạng thái CANCELLED)
     @PutMapping("/{id}/disable")
     public ResponseEntity<?> disableListing(@PathVariable Long id) {
-        log.info("Admin - Disable listing id: {}", id);
-
         return listingRepository.findById(id)
-                .<ResponseEntity<?>>map(listing -> {
-                    listing.setStatus(Listing.ListingStatus.CANCELLED);
-                    Listing updated = listingRepository.save(listing);
-
-                    return ResponseEntity.ok(Map.of(
-                            "message", "Listing " + id + " disabled successfully",
-                            "listing", updated
-                    ));
+                .<ResponseEntity<?>>map(l -> {
+                    l.setStatus(Listing.ListingStatus.CANCELLED);
+                    listingRepository.save(l);
+                    return ResponseEntity.ok(Map.of("message", "Listing disabled", "id", id));
                 })
                 .orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND)
-                        .body("Listing not found with ID: " + id));
+                        .body(Map.of("error", "Listing not found")));
     }
 }

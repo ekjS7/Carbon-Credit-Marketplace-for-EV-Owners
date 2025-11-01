@@ -56,4 +56,9 @@ public class Listing {
     public enum ListingStatus {
         OPEN, RESERVED, SOLD, CANCELLED, APPROVED, REJECTED
     }
+
+    public Object getQuantity() {
+        // TODO Auto-generated method stub
+        throw new UnsupportedOperationException("Unimplemented method 'getQuantity'");
+    }
 }
