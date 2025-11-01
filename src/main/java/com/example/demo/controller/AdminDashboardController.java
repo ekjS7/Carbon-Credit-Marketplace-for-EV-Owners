@@ -32,7 +32,7 @@ public class AdminDashboardController {
         data.put("totalListings", listingRepository.count());
         data.put("totalTransactions", transactionRepository.count());
 
-        // 🧮 Lấy toàn bộ giao dịch 1 lần duy nhất
+        // Lấy toàn bộ giao dịch 1 lần duy nhất
         List<Transaction> transactions = transactionRepository.findAll();
 
         long completed = transactions.stream()
@@ -48,7 +48,7 @@ public class AdminDashboardController {
                 .filter(t -> t.getStatus() == Transaction.TransactionStatus.CONFIRMED)
                 .count();
 
-        // ✅ Gộp kết quả vào map
+        // Gộp kết quả vào map
         data.put("transactionsCompleted", completed);
         data.put("transactionsCancelled", cancelled);
         data.put("transactionsPending", pending);
