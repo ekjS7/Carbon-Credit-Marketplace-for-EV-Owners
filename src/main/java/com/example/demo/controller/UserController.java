@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.example.demo.dto.AuthRequest;
 import com.example.demo.dto.AuthResponse;
+import com.example.demo.dto.UserCreateRequest;
 import com.example.demo.entity.User;
 import com.example.demo.repository.UserRepository;
 import com.example.demo.service.AuthService;
@@ -35,25 +36,16 @@ public class UserController {
         List<User> users = userRepository.findAll();
         return ResponseEntity.ok(users);
     }
-    
     @PostMapping
-    public ResponseEntity<?> createUser(@Valid @RequestBody User user) {
-        log.info("Creating new user with email: {}", user.getEmail());
-        
-        // Check if email already exists
-        if (userRepository.existsByEmail(user.getEmail())) {
-            return ResponseEntity.status(HttpStatus.CONFLICT)
-                    .body("Email already exists: " + user.getEmail());
-        }
-        
-        // Set ID to null to ensure new entity creation
-        user.setId(null);
-        
-        User savedUser = userRepository.save(user);
-        log.info("User created successfully with ID: {}", savedUser.getId());
-        
-        return ResponseEntity.status(HttpStatus.CREATED).body(savedUser);
-    }
+    public ResponseEntity<?> createUser(@Valid @RequestBody UserCreateRequest request) {
+    User user = new User();
+    user.setFullName(request.getFullName());
+    user.setEmail(request.getEmail());
+    user.setPassword(request.getPassword());
+    userRepository.save(user);
+    return ResponseEntity.status(HttpStatus.CREATED).body(user);
+}
+
 
     @PostMapping("/register")
     public ResponseEntity<?> register(@Valid @RequestBody AuthRequest req) {
