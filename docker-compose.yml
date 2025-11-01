@@ -1,58 +1,40 @@
+version: '3.8'
+
 services:
   db:
     image: mysql:8.0
-    container_name: demo-mysql
+    container_name: demo-db
     environment:
-      MYSQL_ROOT_PASSWORD: rootsecret
+      MYSQL_ROOT_PASSWORD: rootpassword
       MYSQL_DATABASE: appdb
       MYSQL_USER: appuser
       MYSQL_PASSWORD: secret
     ports:
-      - "3307:3306"
+      - "3306:3306"
     volumes:
-      - dbdata:/var/lib/mysql
-    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+      - db_data:/var/lib/mysql
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "appuser", "-psecret"]
-      timeout: 20s
-      retries: 10
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-p${MYSQL_ROOT_PASSWORD}"]
       interval: 10s
-      start_period: 40s
-    networks:
-      - app-network
+      timeout: 5s
+      retries: 5
 
-  app:
+  demo-app:
     build: .
     container_name: demo-app
-    ports:
-      - "8083:8080"
     depends_on:
       db:
         condition: service_healthy
     environment:
-      SPRING_PROFILES_ACTIVE: docker
-      SPRING_JPA_HIBERNATE_DDL_AUTO: update
-    networks:
-      - app-network
-    restart: unless-stopped
-
-  adminer:
-    image: adminer
-    container_name: demo-adminer
+      - SPRING_PROFILES_ACTIVE=docker
+      - SPRING_DATASOURCE_URL=jdbc:mysql://db:3306/appdb?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC&characterEncoding=UTF-8&useUnicode=true
+      - SPRING_DATASOURCE_USERNAME=appuser
+      - SPRING_DATASOURCE_PASSWORD=secret
     ports:
-      - "8082:8080"
-    depends_on:
-      - db
-    volumes:
-      - ./uploads:/app/uploads
-    networks:
-      - app-network
+      - "8080:8080"
     restart: unless-stopped
+    links:
+      - db
 
 volumes:
-  dbdata:
-
-networks:
-  app-network:
-    driver: bridge
-
+  db_data:
