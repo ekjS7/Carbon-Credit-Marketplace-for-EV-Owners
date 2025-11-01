@@ -19,7 +19,7 @@ public class AdminReportController {
 
     private final ReportRepository reportRepository;
 
-    // 🟢 Lấy tất cả báo cáo
+    //get all reports
     @GetMapping
     public ResponseEntity<?> getAllReports() {
         log.info("Admin - Get all reports");
@@ -37,7 +37,7 @@ public class AdminReportController {
         ));
     }
 
-    // 🟢 Tạo mới report (dành cho admin)
+    //create generate report
     @PostMapping("/generate")
     public ResponseEntity<?> generateReport(@RequestBody Report report) {
         log.info("Admin - Generate new report");
