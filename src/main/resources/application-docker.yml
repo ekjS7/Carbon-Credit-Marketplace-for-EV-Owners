@@ -24,6 +24,3 @@ logging:
     com.example.demo: INFO
     org.springframework.web: INFO
     org.flywaydb: INFO
-
-
-

@@ -8,7 +8,7 @@ services:
       MYSQL_USER: appuser
       MYSQL_PASSWORD: secret
     ports:
-      - "3307:3306"
+      - "3306:3306"
     volumes:
       - dbdata:/var/lib/mysql
     command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
@@ -43,8 +43,6 @@ services:
       - "8082:8080"
     depends_on:
       - db
-    volumes:
-      - ./uploads:/app/uploads
     networks:
       - app-network
     restart: unless-stopped
@@ -55,4 +53,3 @@ volumes:
 networks:
   app-network:
     driver: bridge
-
