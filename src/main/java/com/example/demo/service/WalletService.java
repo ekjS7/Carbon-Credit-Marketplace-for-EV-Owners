@@ -1,104 +1,105 @@
 package com.example.demo.service;
 
+import com.example.demo.entity.CarbonWallet;
 import com.example.demo.entity.User;
-import com.example.demo.entity.Wallet;
-import com.example.demo.entity.WalletTransaction;
-import com.example.demo.entity.WalletTransaction.TransactionType;
+import com.example.demo.repository.CarbonWalletRepository;
 import com.example.demo.repository.UserRepository;
-import com.example.demo.repository.WalletRepository;
-import com.example.demo.repository.WalletTransactionRepository;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 
 @Service
+@RequiredArgsConstructor
 public class WalletService {
 
-    @Autowired
-    private UserRepository userRepository;
-
-    @Autowired
-    private WalletRepository walletRepository;
-
-    @Autowired
-    private WalletTransactionRepository transactionRepository;
+    private final UserRepository userRepository;
+    private final CarbonWalletRepository carbonWalletRepository;
 
     /**
-     * EXISTING helper method names (kept for internal usage)
-     * creditWallet, debitWallet, transferCredits
-     * (You might have them already — we keep behavior the same.)
+     * Helper: lấy ví carbon của user, nếu không có thì báo lỗi rõ ràng.
      */
+    private CarbonWallet getCarbonWalletOrThrow(Long userId) {
+        return carbonWalletRepository.findByOwner_Id(userId)
+                .orElseThrow(() ->
+                        new RuntimeException("Không tìm thấy carbon wallet cho user ID: " + userId));
+    }
 
-    /** New method expected by other classes: getBalance(userId) */
+    /**
+     * Trả về số dư carbon credit hiện tại của user.
+     * Dùng trong TransactionService.createTransaction() để kiểm tra đủ tiền.
+     */
     @Transactional(readOnly = true)
     public BigDecimal getBalance(Long userId) {
-        Wallet wallet = walletRepository.findByUser_Id(userId)
-                .orElseThrow(() -> new RuntimeException("Không tìm thấy ví của người dùng ID: " + userId));
+        CarbonWallet wallet = getCarbonWalletOrThrow(userId);
         return wallet.getBalance();
     }
 
-    /** New method expected by other classes: credit(userId, amount, description) */
+    /**
+     * Cộng tiền/tín chỉ carbon vào ví user.
+     * Dùng khi seller nhận tiền sau khi bán.
+     */
     @Transactional
-    public WalletTransaction credit(Long userId, BigDecimal amount, String description) {
-        // delegate to existing credit logic (or implement directly)
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new RuntimeException("Không tìm thấy người dùng ID: " + userId));
-
-        Wallet wallet = user.getWallet();
-        if (wallet == null) {
-            throw new RuntimeException("Người dùng chưa có ví!");
+    public void credit(Long userId, BigDecimal amount, String description) {
+        if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new RuntimeException("Số tiền credit phải > 0");
         }
+
+        // đảm bảo user tồn tại (để message lỗi đẹp hơn)
+        User user = userRepository.findById(userId)
+                .orElseThrow(() ->
+                        new RuntimeException("Không tìm thấy người dùng ID: " + userId));
+
+        CarbonWallet wallet = getCarbonWalletOrThrow(user.getId());
 
         wallet.setBalance(wallet.getBalance().add(amount));
-        walletRepository.save(wallet);
+        carbonWalletRepository.save(wallet);
 
-        WalletTransaction transaction = new WalletTransaction();
-        transaction.setWallet(wallet);
-        transaction.setAmount(amount);
-        transaction.setType(TransactionType.CREDIT);
-        transaction.setDescription(description);
-        transactionRepository.save(transaction);
-
-        return transaction;
+        // TODO: nếu bạn muốn lưu lịch sử giao dịch sau này
+        // bạn có thể tạo CarbonWalletTransaction entity riêng
+        // và lưu (userId, amount, type=CREDIT, description)
     }
 
-    /** New method expected by other classes: debit(userId, amount, description) */
+    /**
+     * Trừ tiền/tín chỉ carbon từ ví user.
+     * Dùng khi buyer thanh toán.
+     */
     @Transactional
-    public WalletTransaction debit(Long userId, BigDecimal amount, String description) {
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new RuntimeException("Không tìm thấy người dùng ID: " + userId));
-
-        Wallet wallet = user.getWallet();
-        if (wallet == null) {
-            throw new RuntimeException("Người dùng chưa có ví!");
+    public void debit(Long userId, BigDecimal amount, String description) {
+        if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new RuntimeException("Số tiền debit phải > 0");
         }
+
+        // đảm bảo user tồn tại (để message lỗi đẹp hơn)
+        User user = userRepository.findById(userId)
+                .orElseThrow(() ->
+                        new RuntimeException("Không tìm thấy người dùng ID: " + userId));
+
+        CarbonWallet wallet = getCarbonWalletOrThrow(user.getId());
 
         if (wallet.getBalance().compareTo(amount) < 0) {
             throw new RuntimeException("Số dư không đủ để thực hiện giao dịch!");
         }
 
         wallet.setBalance(wallet.getBalance().subtract(amount));
-        walletRepository.save(wallet);
+        carbonWalletRepository.save(wallet);
 
-        WalletTransaction transaction = new WalletTransaction();
-        transaction.setWallet(wallet);
-        transaction.setAmount(amount);
-        transaction.setType(TransactionType.DEBIT);
-        transaction.setDescription(description);
-        transactionRepository.save(transaction);
-
-        return transaction;
+        // TODO: ghi log giao dịch nếu cần (giống credit)
     }
 
     /**
-     * If you still want named helpers creditWallet/debitWallet/transferCredits,
-     * keep them or add wrappers to call the above methods.
+     * Optional tiện ích: chuyển tín chỉ từ A → B.
+     * Có thể dùng cho P2P/gifting nếu sau này cần.
      */
     @Transactional
-    public void transferCredits(Long ownerId, Long buyerId, BigDecimal amount) {
-        debit(ownerId, amount, "Trừ tín chỉ khi bán cho Buyer ID " + buyerId);
-        credit(buyerId, amount, "Nhận tín chỉ từ Owner ID " + ownerId);
+    public void transferCredits(Long fromUserId, Long toUserId, BigDecimal amount) {
+        // Trừ ví người gửi
+        debit(fromUserId, amount,
+                "Chuyển tín chỉ cho user ID " + toUserId);
+
+        // Cộng ví người nhận
+        credit(toUserId, amount,
+                "Nhận tín chỉ từ user ID " + fromUserId);
     }
 }

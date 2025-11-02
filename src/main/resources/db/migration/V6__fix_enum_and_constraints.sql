@@ -12,6 +12,3 @@ ALTER TABLE wallet_transactions
     MODIFY amount DECIMAL(19,4) NOT NULL,
     ADD CONSTRAINT chk_amount_positive CHECK (amount > 0);
 
--- Update users table to use BigDecimal for carbon_balance
-ALTER TABLE users
-    MODIFY carbon_balance DECIMAL(19,4) NOT NULL DEFAULT 0;

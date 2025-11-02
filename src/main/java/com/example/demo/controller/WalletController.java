@@ -1,10 +1,7 @@
 package com.example.demo.controller;
 
 import com.example.demo.entity.User;
-import com.example.demo.entity.Wallet;
-import com.example.demo.entity.WalletTransaction;
 import com.example.demo.repository.UserRepository;
-import com.example.demo.repository.WalletRepository;
 import com.example.demo.service.WalletService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -13,7 +10,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
-import java.util.HashMap;
 import java.util.Map;
 
 @RestController
@@ -24,10 +20,12 @@ public class WalletController {
 
     private final WalletService walletService;
     private final UserRepository userRepository;
-    private final WalletRepository walletRepository;
 
     /**
-     * ✅ Create a wallet for a user
+     * Tạo ví ban đầu cho user (chỉ dùng lúc bootstrap / admin).
+     * Lưu ý: logic hiện tại tạo kiểu "wallet thường".
+     * Nếu bạn đã chuyển hoàn toàn sang carbon_wallet và không dùng entity Wallet nữa
+     * thì endpoint này có thể bị deprecate. Giữ tạm theo code gốc nhưng tối giản.
      */
     @PostMapping
     public ResponseEntity<?> createWallet(@RequestBody Map<String, Object> request) {
@@ -35,34 +33,38 @@ public class WalletController {
             Long userId = Long.parseLong(request.get("userId").toString());
             BigDecimal balance = new BigDecimal(request.get("balance").toString());
 
-            // 🔹 Lấy user có thật trong DB
+            // Tìm user
             User user = userRepository.findById(userId)
                     .orElseThrow(() -> new RuntimeException("User not found"));
 
-            // 🔹 Nếu user đã có ví thì không tạo lại
+            // Nếu bạn còn trường user.getWallet() (ví cũ) thì giữ check này.
+            // Nếu sau này bạn bỏ hẳn entity Wallet truyền thống thì có thể xoá cả block createWallet này.
             if (user.getWallet() != null) {
                 return ResponseEntity.status(HttpStatus.CONFLICT)
                         .body(Map.of("error", "Wallet already exists for this user"));
             }
 
-            // 🔹 Tạo ví mới, gán quan hệ 2 chiều
-            Wallet wallet = new Wallet();
-            wallet.setBalance(balance);
-            wallet.setUser(user);
-            user.setWallet(wallet);
-
-            // Quan trọng: lưu user thay vì wallet
-            userRepository.save(user);
-
-            return ResponseEntity.status(HttpStatus.CREATED)
+            // Nếu bạn vẫn còn entity Wallet và muốn tạo nó ở đây thì bạn sẽ cần:
+            // - new Wallet()
+            // - setUser(user)
+            // - setBalance(balance)
+            // - user.setWallet(wallet)
+            // - userRepository.save(user)
+            //
+            // Tuy nhiên vì ta đã migrate sang CarbonWallet, controller này
+            // thực tế không nên tạo ví kiểu cũ nữa.
+            //
+            // Mình sẽ trả về 410 Gone để nhắc bạn migrate endpoint này sang CarbonWalletService.createWallet(...)
+            log.warn("createWallet() was called but legacy Wallet model is being phased out.");
+            return ResponseEntity.status(HttpStatus.GONE)
                     .body(Map.of(
-                            "message", "Wallet created successfully",
+                            "warning", "Legacy wallet creation endpoint is deprecated. Use carbon wallet initialization instead.",
                             "userId", userId,
-                            "balance", balance
+                            "requestedInitialBalance", balance
                     ));
 
         } catch (Exception e) {
-            e.printStackTrace();
+            log.error("Failed to create wallet: {}", e.getMessage(), e);
             return ResponseEntity.internalServerError()
                     .body(Map.of(
                             "error", "Failed to create wallet",
@@ -72,19 +74,21 @@ public class WalletController {
     }
 
     /**
-     * Get current carbon balance for a user
+     * Lấy số dư carbon hiện tại của user (đọc từ carbon_wallet).
      */
     @GetMapping("/{userId}/balance")
     public ResponseEntity<?> getBalance(@PathVariable Long userId) {
         try {
             log.info("Getting balance for user ID: {}", userId);
+
             BigDecimal balance = walletService.getBalance(userId);
 
-            Map<String, Object> response = new HashMap<>();
-            response.put("userId", userId);
-            response.put("carbonBalance", balance);
-
-            return ResponseEntity.ok(response);
+            return ResponseEntity.ok(
+                    Map.of(
+                            "userId", userId,
+                            "carbonBalance", balance
+                    )
+            );
         } catch (RuntimeException e) {
             log.error("Error getting balance for user ID {}: {}", userId, e.getMessage());
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
@@ -93,48 +97,97 @@ public class WalletController {
     }
 
     /**
-     * Credit carbon credits to a user's wallet
+     * Cộng carbon credit vào ví của user (nạp tiền / seller nhận tiền).
      */
     @PostMapping("/{userId}/credit")
     public ResponseEntity<?> credit(
             @PathVariable Long userId,
             @RequestParam BigDecimal amount,
-            @RequestParam(required = false, defaultValue = "Carbon credit added") String description) {
+            @RequestParam(required = false, defaultValue = "Carbon credit added") String description
+    ) {
         try {
             log.info("Credit request for user ID {}: amount={}", userId, amount);
-            WalletTransaction transaction = walletService.credit(userId, amount, description);
-            return ResponseEntity.status(HttpStatus.CREATED).body(transaction);
+
+            walletService.credit(userId, amount, description);
+
+            BigDecimal newBalance = walletService.getBalance(userId);
+
+            return ResponseEntity
+                    .status(HttpStatus.CREATED)
+                    .body(new BalanceResponse(userId, newBalance, "CREDITED"));
+
         } catch (IllegalArgumentException e) {
             log.error("Invalid credit request for user ID {}: {}", userId, e.getMessage());
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+            return ResponseEntity
+                    .status(HttpStatus.BAD_REQUEST)
                     .body(Map.of("error", e.getMessage()));
+
         } catch (RuntimeException e) {
-            log.error("Error processing credit for user ID {}: {}", userId, e.getMessage());
-            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+            log.error("Credit failed for user ID {}: {}", userId, e.getMessage());
+            return ResponseEntity
+                    .status(HttpStatus.BAD_REQUEST)
                     .body(Map.of("error", e.getMessage()));
         }
     }
 
     /**
-     * Debit carbon credits from a user's wallet
+     * Trừ carbon credit khỏi ví của user (buyer thanh toán).
      */
     @PostMapping("/{userId}/debit")
     public ResponseEntity<?> debit(
             @PathVariable Long userId,
             @RequestParam BigDecimal amount,
-            @RequestParam(required = false, defaultValue = "Carbon credit deducted") String description) {
+            @RequestParam(required = false, defaultValue = "Carbon credit deducted") String description
+    ) {
         try {
             log.info("Debit request for user ID {}: amount={}", userId, amount);
-            WalletTransaction transaction = walletService.debit(userId, amount, description);
-            return ResponseEntity.status(HttpStatus.CREATED).body(transaction);
+
+            walletService.debit(userId, amount, description);
+
+            BigDecimal newBalance = walletService.getBalance(userId);
+
+            return ResponseEntity
+                    .status(HttpStatus.OK)
+                    .body(new BalanceResponse(userId, newBalance, "DEBITED"));
+
         } catch (IllegalArgumentException e) {
             log.error("Invalid debit request for user ID {}: {}", userId, e.getMessage());
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+            return ResponseEntity
+                    .status(HttpStatus.BAD_REQUEST)
                     .body(Map.of("error", e.getMessage()));
+
         } catch (RuntimeException e) {
             log.error("Error processing debit for user ID {}: {}", userId, e.getMessage());
-            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+            return ResponseEntity
+                    .status(HttpStatus.NOT_FOUND)
                     .body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    /**
+     * DTO trả về sau mỗi lần nạp/rút để FE biết userId, số dư mới và trạng thái.
+     */
+    public static class BalanceResponse {
+        private final Long userId;
+        private final BigDecimal balance;
+        private final String status;
+
+        public BalanceResponse(Long userId, BigDecimal balance, String status) {
+            this.userId = userId;
+            this.balance = balance;
+            this.status = status;
+        }
+
+        public Long getUserId() {
+            return userId;
+        }
+
+        public BigDecimal getBalance() {
+            return balance;
+        }
+
+        public String getStatus() {
+            return status;
         }
     }
 }

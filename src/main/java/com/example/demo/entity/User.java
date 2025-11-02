@@ -44,9 +44,6 @@ public class User {
     @CreationTimestamp
     private LocalDateTime createdAt;
 
-    @Column(name = "carbon_balance", nullable = false, precision = 19, scale = 4)
-    private BigDecimal carbonBalance = BigDecimal.ZERO;
-
     @ManyToMany(fetch = FetchType.EAGER)
     @JoinTable(
             name = "user_roles",
