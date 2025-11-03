@@ -19,7 +19,11 @@ public class FileMetadata {
     private LocalDateTime uploadedAt;
 
     @Column(nullable = false)
-    private Long uploadedBy; // id user hoặc null nếu không bắt buộc
+    private Long uploadedBy; // id user
+
+    @Column(nullable = false)
+    private Long creditRequestId;
+    // -----------------------
 
     // Getter và Setter
     public Long getId() { return id; }
@@ -42,4 +46,7 @@ public class FileMetadata {
 
     public Long getUploadedBy() { return uploadedBy; }
     public void setUploadedBy(Long uploadedBy) { this.uploadedBy = uploadedBy; }
+
+    public Long getCreditRequestId() { return creditRequestId; }
+    public void setCreditRequestId(Long creditRequestId) { this.creditRequestId = creditRequestId; }
 }

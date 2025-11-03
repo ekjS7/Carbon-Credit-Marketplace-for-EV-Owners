@@ -1,33 +1,39 @@
-# Stage 1: Build the application
-FROM maven:3.9.8-eclipse-temurin-21 AS build
+# ===============================
+# Stage 1: Build ứng dụng với Maven
+# ===============================
+FROM maven:3.9.8-eclipse-temurin-21 AS builder
 
 WORKDIR /app
 
-# Copy pom.xml trước để cache dependencies (nếu mạng ổn)
+# Copy pom.xml trước để cache dependencies
 COPY pom.xml .
 
-# ⚠️ BỎ QUA bước go-offline để tránh lỗi mạng
-# RUN mvn dependency:go-offline -B
 
-# Copy toàn bộ source code
-COPY src ./src
+# Tải dependencies để cache (build nhanh hơn các lần sau)
+RUN mvn dependency:go-offline -B
 
-# Build ứng dụng (bỏ qua test)
-RUN mvn clean package -DskipTests -B
+# Copy toàn bộ source code vào container
+COPY . .
 
-# Stage 2: Run the application
+# Build ứng dụng, bỏ qua test để build nhanh hơn
+RUN mvn clean package -DskipTests
+
+# ===============================
+# Stage 2: Runtime - Chạy ứng dụng Spring Boot
+# ===============================
 FROM eclipse-temurin:21-jre
 
 WORKDIR /app
 
-# Copy file jar từ stage build
-COPY --from=build /app/target/*.jar app.jar
+# Copy file JAR từ stage build sang stage runtime
+COPY --from=builder /app/target/*.jar app.jar
 
-# Thiết lập profile docker (tùy chọn)
-ENV SPRING_PROFILES_ACTIVE=docker
-
-# Expose port
+# Cấu hình cổng ứng dụng
 EXPOSE 8080
 
-# Run the app
-ENTRYPOINT ["java", "-jar", "app.jar"]
+# Thiết lập biến môi trường tùy chọn
+ENV SPRING_PROFILES_ACTIVE=docker
+ENV JAVA_OPTS="-Xms256m -Xmx512m"
+
+# Lệnh khởi chạy ứng dụng
+ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar app.jar"]
