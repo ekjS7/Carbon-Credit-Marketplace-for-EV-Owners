@@ -20,7 +20,7 @@ public class CvaServiceImpl implements CvaService {
 
     @Override
     public List<CreditRequest> getPendingRequests() {
-        return creditRequestRepository.findByStatus("PENDING");
+        return creditRequestRepository.findAll();
     }
 
     @Override
