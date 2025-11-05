@@ -15,42 +15,27 @@ import java.util.Optional;
 public class OrderTransactionService {
 
     private final OrderTransactionRepository orderRepo;
-    private final CarbonWalletService carbonWalletService;
+    private final WalletService walletService; // sử dụng service hiện có để chuyển tín chỉ
 
     /**
-     * Buyer bấm "mua" -> tạo order ở trạng thái IN_TRANSACTION
-     *
-     * @param buyerId     người mua
-     * @param ownerId     người bán (chủ ví tín chỉ)
-     * @param creditId    loại tín chỉ carbon muốn mua (CarbonCredit.id)
-     * @param quantity    bao nhiêu tín chỉ
-     * @param totalAmount số tiền tương ứng (có thể null nếu bạn chưa xử lý thanh toán tiền ở bước này)
+     * Buyer ấn mua -> tạo order, set status = IN_TRANSACTION
      */
-    public OrderTransaction createOrder(Long buyerId,
-                                        Long ownerId,
-                                        Long creditId,
-                                        Integer quantity,
-                                        BigDecimal totalAmount) {
-
+    public OrderTransaction createOrder(Long buyerId, Long ownerId, BigDecimal creditsAmount) {
         OrderTransaction order = OrderTransaction.builder()
                 .buyerId(buyerId)
                 .ownerId(ownerId)
-                .creditId(creditId)
-                .quantity(quantity)
-                .creditsAmount(totalAmount)
+                .creditsAmount(creditsAmount)
                 .status("IN_TRANSACTION")
                 .build();
-
         return orderRepo.save(order);
     }
 
     /**
-     * Buyer confirm thanh toán -> chuyển quyền sở hữu tín chỉ
-     * - Trừ tín chỉ khỏi ví carbon của ownerId
-     * - Cộng tín chỉ cho buyerId
-     * - Cập nhật trạng thái SUCCESS
+     * Buyer confirm thanh toán -> finalize transaction:
+     * - gọi walletService.transferCredits(ownerId, buyerId, creditsAmount)
+     * - cập nhật order.status = SUCCESS hoặc FAILED nếu có exception
      *
-     * Nếu fail (ví dụ seller không đủ tín chỉ), mark FAILED.
+     * Important: toàn bộ thao tác thực hiện trong DB transaction
      */
     @Transactional
     public OrderTransaction confirmPayment(Long orderId) {
@@ -58,53 +43,36 @@ public class OrderTransactionService {
                 .orElseThrow(() -> new IllegalArgumentException("Order not found: " + orderId));
 
         if (!"IN_TRANSACTION".equals(order.getStatus())) {
-            // idempotency: nếu đã SUCCESS thì trả ra luôn
-            if ("SUCCESS".equals(order.getStatus())) {
-                return order;
-            }
+            // idempotency / trạng thái: nếu đã SUCCESS trả về luôn
+            if ("SUCCESS".equals(order.getStatus())) return order;
             throw new IllegalStateException("Order is not in IN_TRANSACTION state: " + order.getStatus());
         }
 
         try {
-            // Chuyển tín chỉ carbon
-            carbonWalletService.transferHolding(
-                    order.getOwnerId(),   // seller
-                    order.getBuyerId(),   // buyer
-                    order.getCreditId(),  // loại tín chỉ
-                    order.getQuantity()   // số lượng tín chỉ
-            );
+            // gọi WalletService thực hiện trừ Owner và cộng Buyer (gồm ghi WalletTransaction và update Wallet)
+            walletService.transferCredits(order.getOwnerId(), order.getBuyerId(), order.getCreditsAmount());
 
             order.setStatus("SUCCESS");
             order.setUpdatedAt(LocalDateTime.now());
             return orderRepo.save(order);
-
-        } catch (Exception e) {
+        } catch (Exception ex) {
+            // mark failed và propagate hoặc log
             order.setStatus("FAILED");
             order.setUpdatedAt(LocalDateTime.now());
             orderRepo.save(order);
-            throw e;
+            throw ex;
         }
     }
 
-    /**
-     * Xem chi tiết order theo ID
-     */
     public Optional<OrderTransaction> getOrder(Long id) {
         return orderRepo.findById(id);
     }
 
-    /**
-     * Buyer hoặc seller huỷ order nếu chưa xong
-     */
-    @Transactional
     public void cancelOrder(Long id) {
-        OrderTransaction order = orderRepo.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("Order not found: " + id));
-
+        OrderTransaction order = orderRepo.findById(id).orElseThrow();
         if ("SUCCESS".equals(order.getStatus())) {
             throw new IllegalStateException("Cannot cancel completed order");
         }
-
         order.setStatus("CANCELLED");
         order.setUpdatedAt(LocalDateTime.now());
         orderRepo.save(order);

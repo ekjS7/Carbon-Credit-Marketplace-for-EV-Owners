@@ -1,230 +1,105 @@
 package com.example.demo.service;
 
+import com.example.demo.entity.CarbonWallet;
 import com.example.demo.entity.User;
-import com.example.demo.entity.Wallet;
-import com.example.demo.entity.WalletTransaction;
+import com.example.demo.repository.CarbonWalletRepository;
 import com.example.demo.repository.UserRepository;
-import com.example.demo.repository.WalletRepository;
-import com.example.demo.repository.WalletTransactionRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
-import java.util.NoSuchElementException;
 
 @Service
 @RequiredArgsConstructor
 public class WalletService {
 
-    private final WalletRepository walletRepository;
-    private final WalletTransactionRepository walletTransactionRepository;
     private final UserRepository userRepository;
+    private final CarbonWalletRepository carbonWalletRepository;
 
     /**
-     * Lấy ví tiền (Wallet) của user. Nếu chưa có thì tạo mới với balance = 0.
+     * Helper: lấy ví carbon của user, nếu không có thì báo lỗi rõ ràng.
      */
-    @Transactional
-    public Wallet getOrCreateWallet(Long userId) {
-        return walletRepository.findByUser_Id(userId)
-                .orElseGet(() -> {
-                    User user = userRepository.findById(userId)
-                            .orElseThrow(() -> new NoSuchElementException("User not found: " + userId));
-
-                    Wallet w = new Wallet();
-                    w.setUser(user);
-                    w.setBalance(BigDecimal.ZERO);
-                    return walletRepository.save(w);
-                });
+    private CarbonWallet getCarbonWalletOrThrow(Long userId) {
+        return carbonWalletRepository.findByOwner_Id(userId)
+                .orElseThrow(() ->
+                        new RuntimeException("Không tìm thấy carbon wallet cho user ID: " + userId));
     }
 
     /**
-     * Lấy số dư ví tiền của user.
+     * Trả về số dư carbon credit hiện tại của user.
+     * Dùng trong TransactionService.createTransaction() để kiểm tra đủ tiền.
      */
     @Transactional(readOnly = true)
     public BigDecimal getBalance(Long userId) {
-        Wallet wallet = walletRepository.findByUser_Id(userId)
-                .orElseThrow(() -> new NoSuchElementException("Wallet not found for user " + userId));
+        CarbonWallet wallet = getCarbonWalletOrThrow(userId);
         return wallet.getBalance();
     }
 
     /**
-     * Ghi nhận giao dịch (WalletTransaction) - dùng nội bộ trong service.
-     */
-    private WalletTransaction logTransaction(
-            Wallet wallet,
-            WalletTransaction.TransactionType type,
-            WalletTransaction.TransactionStatus status,
-            BigDecimal amount,
-            String description,
-            String orderRef,
-            String gateway,
-            String failReason
-    ) {
-        WalletTransaction tx = new WalletTransaction();
-        tx.setWallet(wallet);
-        tx.setType(type);
-        tx.setStatus(status);
-        tx.setAmount(amount);
-        tx.setDescription(description);
-        tx.setOrderRef(orderRef);
-        tx.setPaymentGateway(gateway);
-        tx.setFailReason(failReason);
-        return walletTransactionRepository.save(tx);
-    }
-
-    /**
-     * TOPUP thành công (sau callback VNPAY):
-     * - cộng tiền vào ví user
-     * - đánh dấu transaction SUCCESS
+     * Cộng tiền/tín chỉ carbon vào ví user.
+     * Dùng khi seller nhận tiền sau khi bán.
      */
     @Transactional
-    public void confirmTopUpSuccess(String orderRef) {
-        WalletTransaction tx = walletTransactionRepository.findByOrderRef(orderRef)
-                .orElseThrow(() -> new NoSuchElementException("Transaction not found: " + orderRef));
-
-        // Chỉ xử lý nếu đang ở trạng thái PENDING để tránh cộng tiền 2 lần
-        if (tx.getStatus() != WalletTransaction.TransactionStatus.PENDING) {
-            return;
+    public void credit(Long userId, BigDecimal amount, String description) {
+        if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new RuntimeException("Số tiền credit phải > 0");
         }
 
-        Wallet wallet = tx.getWallet();
+        // đảm bảo user tồn tại (để message lỗi đẹp hơn)
+        User user = userRepository.findById(userId)
+                .orElseThrow(() ->
+                        new RuntimeException("Không tìm thấy người dùng ID: " + userId));
 
-        // Cộng tiền
-        wallet.setBalance(wallet.getBalance().add(tx.getAmount()));
-        walletRepository.save(wallet);
+        CarbonWallet wallet = getCarbonWalletOrThrow(user.getId());
 
-        // Cập nhật transaction
-        tx.setStatus(WalletTransaction.TransactionStatus.SUCCESS);
-        tx.setFailReason(null);
-        walletTransactionRepository.save(tx);
+        wallet.setBalance(wallet.getBalance().add(amount));
+        carbonWalletRepository.save(wallet);
+
+        // TODO: nếu bạn muốn lưu lịch sử giao dịch sau này
+        // bạn có thể tạo CarbonWalletTransaction entity riêng
+        // và lưu (userId, amount, type=CREDIT, description)
     }
 
     /**
-     * TOPUP thất bại (callback VNPAY báo lỗi)
+     * Trừ tiền/tín chỉ carbon từ ví user.
+     * Dùng khi buyer thanh toán.
      */
     @Transactional
-    public void markTopUpFailed(String orderRef, String failReason) {
-        WalletTransaction tx = walletTransactionRepository.findByOrderRef(orderRef)
-                .orElseThrow(() -> new NoSuchElementException("Transaction not found: " + orderRef));
-
-        if (tx.getStatus() != WalletTransaction.TransactionStatus.PENDING) {
-            return;
+    public void debit(Long userId, BigDecimal amount, String description) {
+        if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new RuntimeException("Số tiền debit phải > 0");
         }
 
-        tx.setStatus(WalletTransaction.TransactionStatus.FAILED);
-        tx.setFailReason(failReason);
-        walletTransactionRepository.save(tx);
-    }
+        // đảm bảo user tồn tại (để message lỗi đẹp hơn)
+        User user = userRepository.findById(userId)
+                .orElseThrow(() ->
+                        new RuntimeException("Không tìm thấy người dùng ID: " + userId));
 
-    /**
-     * Khởi tạo yêu cầu nạp tiền (trước khi redirect VNPAY)
-     * -> tạo transaction PENDING
-     * -> trả về orderRef để build URL VNPAY
-     */
-    @Transactional
-    public WalletTransaction initTopUp(Long userId, BigDecimal amount, String gateway) {
-        Wallet wallet = getOrCreateWallet(userId);
-
-        // tạo mã orderRef duy nhất gửi VNPAY
-        String orderRef = "TOPUP_" + userId + "_" + System.currentTimeMillis();
-
-        WalletTransaction tx = new WalletTransaction();
-        tx.setWallet(wallet);
-        tx.setType(WalletTransaction.TransactionType.TOPUP);
-        tx.setStatus(WalletTransaction.TransactionStatus.PENDING);
-        tx.setAmount(amount);
-        tx.setDescription("Top-up via " + gateway);
-        tx.setOrderRef(orderRef);
-        tx.setPaymentGateway(gateway);
-        tx.setFailReason(null);
-
-        return walletTransactionRepository.save(tx);
-    }
-
-    /**
-     * Trừ tiền ví khi mua tín chỉ (buyer trả tiền)
-     * - ném lỗi nếu không đủ số dư
-     */
-    @Transactional
-    public void debitForPurchase(Long buyerId, BigDecimal totalAmount, String desc) {
-        Wallet buyerWallet = walletRepository.findByUser_Id(buyerId)
-                .orElseThrow(() -> new NoSuchElementException("Wallet not found for buyer " + buyerId));
-
-        if (buyerWallet.getBalance().compareTo(totalAmount) < 0) {
-            throw new IllegalStateException("Insufficient balance");
-        }
-
-        // Trừ tiền
-        buyerWallet.setBalance(buyerWallet.getBalance().subtract(totalAmount));
-        walletRepository.save(buyerWallet);
-
-        // Ghi lịch sử PURCHASE
-        logTransaction(
-                buyerWallet,
-                WalletTransaction.TransactionType.PURCHASE,
-                WalletTransaction.TransactionStatus.SUCCESS,
-                totalAmount,
-                desc,
-                null,               // orderRef không bắt buộc cho giao dịch nội bộ
-                "INTERNAL",
-                null
-        );
-    }
-
-    /**
-     * Cộng tiền ví cho seller khi bán tín chỉ (seller nhận tiền)
-     */
-    @Transactional
-    public void creditFromSale(Long sellerId, BigDecimal totalAmount, String desc) {
-        Wallet sellerWallet = getOrCreateWallet(sellerId);
-
-        // Cộng tiền
-        sellerWallet.setBalance(sellerWallet.getBalance().add(totalAmount));
-        walletRepository.save(sellerWallet);
-
-        // Ghi lịch sử SALE_PROCEEDS
-        logTransaction(
-                sellerWallet,
-                WalletTransaction.TransactionType.SALE_PROCEEDS,
-                WalletTransaction.TransactionStatus.SUCCESS,
-                totalAmount,
-                desc,
-                null,
-                "INTERNAL",
-                null
-        );
-    }
-
-    /**
-     * Request rút tiền (WITHDRAW).
-     * Ở đây mình sẽ trừ tiền khỏi ví ngay và tạo transaction ở trạng thái PENDING,
-     * để chờ admin/chuyển khoản thủ công duyệt.
-     */
-    @Transactional
-    public WalletTransaction requestWithdraw(Long userId, BigDecimal amount, String desc) {
-        Wallet wallet = walletRepository.findByUser_Id(userId)
-                .orElseThrow(() -> new NoSuchElementException("Wallet not found for user " + userId));
+        CarbonWallet wallet = getCarbonWalletOrThrow(user.getId());
 
         if (wallet.getBalance().compareTo(amount) < 0) {
-            throw new IllegalStateException("Insufficient balance for withdraw");
+            throw new RuntimeException("Số dư không đủ để thực hiện giao dịch!");
         }
 
-        // Trừ trước để "giữ chỗ"
         wallet.setBalance(wallet.getBalance().subtract(amount));
-        walletRepository.save(wallet);
+        carbonWalletRepository.save(wallet);
 
-        WalletTransaction tx = new WalletTransaction();
-        tx.setWallet(wallet);
-        tx.setType(WalletTransaction.TransactionType.WITHDRAW);
-        tx.setStatus(WalletTransaction.TransactionStatus.PENDING); // chờ xử lý payout
-        tx.setAmount(amount);
-        tx.setDescription(desc);
-        tx.setPaymentGateway("BANK_TRANSFER");
-        tx.setOrderRef("WITHDRAW_" + userId + "_" + System.currentTimeMillis());
-        tx.setFailReason(null);
-
-        return walletTransactionRepository.save(tx);
+        // TODO: ghi log giao dịch nếu cần (giống credit)
     }
 
+    /**
+     * Optional tiện ích: chuyển tín chỉ từ A → B.
+     * Có thể dùng cho P2P/gifting nếu sau này cần.
+     */
+    @Transactional
+    public void transferCredits(Long fromUserId, Long toUserId, BigDecimal amount) {
+        // Trừ ví người gửi
+        debit(fromUserId, amount,
+                "Chuyển tín chỉ cho user ID " + toUserId);
+
+        // Cộng ví người nhận
+        credit(toUserId, amount,
+                "Nhận tín chỉ từ user ID " + fromUserId);
+    }
 }
