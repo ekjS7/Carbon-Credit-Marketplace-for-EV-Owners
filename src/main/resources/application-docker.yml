@@ -19,11 +19,6 @@ spring:
     locations: classpath:db/migration
     baseline-on-migrate: true
 
-  servlet:
-    multipart:
-      max-file-size: 50MB
-      max-request-size: 50MB
-
 logging:
   level:
     com.example.demo: INFO

@@ -1,39 +1,30 @@
-# ===============================
-# Stage 1: Build ứng dụng với Maven
-# ===============================
-FROM maven:3.9.8-eclipse-temurin-21 AS builder
+# Multi-stage build
+# Stage 1: Build the application
+FROM maven:3.9.8-eclipse-temurin-21 AS build
 
 WORKDIR /app
 
-# Copy pom.xml trước để cache dependencies
+# Copy pom.xml first to leverage Docker cache
 COPY pom.xml .
-
-
-# Tải dependencies để cache (build nhanh hơn các lần sau)
 RUN mvn dependency:go-offline -B
 
-# Copy toàn bộ source code vào container
-COPY . .
+# Copy source code and build
+COPY src ./src
+RUN mvn clean package -DskipTests -B
 
-# Build ứng dụng, bỏ qua test để build nhanh hơn
-RUN mvn clean package -DskipTests
-
-# ===============================
-# Stage 2: Runtime - Chạy ứng dụng Spring Boot
-# ===============================
+# Stage 2: Run the application
 FROM eclipse-temurin:21-jre
 
 WORKDIR /app
 
-# Copy file JAR từ stage build sang stage runtime
-COPY --from=builder /app/target/*.jar app.jar
+# Copy the built jar from build stage
+COPY --from=build /app/target/*.jar app.jar
 
-# Cấu hình cổng ứng dụng
+# Set Spring profile for Docker environment
+ENV SPRING_PROFILES_ACTIVE=docker
+
+# Expose port
 EXPOSE 8080
 
-# Thiết lập biến môi trường tùy chọn
-ENV SPRING_PROFILES_ACTIVE=docker
-ENV JAVA_OPTS="-Xms256m -Xmx512m"
-
-# Lệnh khởi chạy ứng dụng
-ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar app.jar"]
+# Run the application
+ENTRYPOINT ["java", "-jar", "app.jar"]
