@@ -1,17 +1,23 @@
 package com.example.demo.controller;
 
-import com.example.demo.entity.Transaction;
-import com.example.demo.repository.UserRepository;
-import com.example.demo.repository.ListingRepository;
-import com.example.demo.repository.TransactionRepository;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
-
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+
+import com.example.demo.entity.Transaction;
+import com.example.demo.repository.ListingRepository;
+import com.example.demo.repository.TransactionRepository;
+import com.example.demo.repository.UserRepository;
+
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 @RestController
 @RequestMapping("/api/admin/dashboard")
@@ -22,6 +28,7 @@ public class AdminDashboardController {
     private final UserRepository userRepository;
     private final ListingRepository listingRepository;
     private final TransactionRepository transactionRepository;
+        private final com.example.demo.service.DashboardSseService dashboardSseService;
 
     @GetMapping("/summary")
     public ResponseEntity<Map<String, Object>> getSummary() {
@@ -56,4 +63,34 @@ public class AdminDashboardController {
 
         return ResponseEntity.ok(data);
     }
+
+        @GetMapping("/stream")
+        public org.springframework.web.servlet.mvc.method.annotation.SseEmitter stream() {
+                log.info("Admin - Open dashboard SSE stream");
+                return dashboardSseService.registerEmitter();
+        }
+
+        @PostMapping("/refresh")
+        public ResponseEntity<Void> refreshNow() {
+                log.info("Admin - Manual refresh requested");
+                dashboardSseService.manualPublish();
+                return ResponseEntity.ok().build();
+        }
+
+        @GetMapping("/clients")
+        public ResponseEntity<Integer> clients() {
+                return ResponseEntity.ok(dashboardSseService.getConnectedClientCount());
+        }
+
+        @PostMapping("/refresh/interval")
+        public ResponseEntity<Void> setInterval(@RequestParam long seconds) {
+                dashboardSseService.setRefreshInterval(seconds);
+                return ResponseEntity.ok().build();
+        }
+
+        @PostMapping("/refresh/toggle")
+        public ResponseEntity<Void> toggle(@RequestParam boolean enabled) {
+                dashboardSseService.setRefreshing(enabled);
+                return ResponseEntity.ok().build();
+        }
 }
