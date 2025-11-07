@@ -1,9 +1,9 @@
 CREATE TABLE co2_reduction (
     id BIGINT PRIMARY KEY AUTO_INCREMENT,
     user_id VARCHAR(255) NOT NULL,
-    baseline DOUBLE NOT NULL,
-    actual DOUBLE NOT NULL,
-    reduction DOUBLE NOT NULL,
+    baseline DECIMAL(18, 4) NOT NULL,
+    actual DECIMAL(18, 4) NOT NULL,
+    reduction DECIMAL(18, 4) NOT NULL,
     certified BOOLEAN NOT NULL,
     status VARCHAR(20) NOT NULL,
     created_at DATETIME NOT NULL,

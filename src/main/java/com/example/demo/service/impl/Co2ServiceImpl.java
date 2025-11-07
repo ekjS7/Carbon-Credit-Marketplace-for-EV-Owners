@@ -7,6 +7,9 @@ import com.example.demo.entity.Co2Status;
 import com.example.demo.exception.InvalidEmissionDataException;
 import com.example.demo.repository.Co2Repository;
 import com.example.demo.service.Co2Service;
+
+import java.math.BigDecimal;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -17,7 +20,8 @@ public class Co2ServiceImpl implements Co2Service {
 
     private static final Logger logger = LoggerFactory.getLogger(Co2ServiceImpl.class);
     private final Co2Repository co2Repository;
-    private static final double MIN_REDUCTION = 1000.0;
+    
+    private static final BigDecimal MIN_REDUCTION = new BigDecimal("1000.0");
 
     public Co2ServiceImpl(Co2Repository co2Repository) {
         this.co2Repository = co2Repository;
@@ -26,20 +30,21 @@ public class Co2ServiceImpl implements Co2Service {
     @Override
     @Transactional
     public Co2ResponseDto processEmission(Co2RequestDto request) {
-        double baseline = request.getBaseline();
-        double actual = request.getActual();
+        BigDecimal baseline = request.getBaseline();
+        BigDecimal actual = request.getActual();
         boolean certified = request.isCertified();
         String userId = request.getUserId();
 
         logger.info("Bắt đầu xử lý CO2 cho user {}", userId);
 
-        if (baseline < actual) {
+        if (baseline.compareTo(actual) < 0) {
             logger.warn("Phát thải thực tế ({}) lớn hơn cơ sở ({}).", actual, baseline);
             throw new InvalidEmissionDataException("Phát thải thực tế lớn hơn cơ sở.");
         }
 
-        double reduction = baseline - actual;
-        Co2Status status = (reduction >= MIN_REDUCTION && certified)
+        BigDecimal reduction = baseline.subtract(actual);
+
+        Co2Status status = (reduction.compareTo(MIN_REDUCTION) >= 0 && certified)
                 ? Co2Status.APPROVED
                 : Co2Status.REJECTED;
 
@@ -63,5 +68,3 @@ public class Co2ServiceImpl implements Co2Service {
         return response;
     }
 }
-
-

@@ -1,5 +1,7 @@
 package com.example.demo.dto;
 
+import java.math.BigDecimal;
+
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.PositiveOrZero;
@@ -12,11 +14,11 @@ public class Co2RequestDto {
 
     @NotNull
     @PositiveOrZero
-    private Double baseline;
+    private BigDecimal baseline;
 
     @NotNull
     @PositiveOrZero
-    private Double actual;
+    private BigDecimal actual;
 
     private boolean certified;
 

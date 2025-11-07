@@ -5,6 +5,7 @@ import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Getter
@@ -22,14 +23,14 @@ public class Co2Reduction {
     @Column(nullable = false)
     private String userId;
 
-    @Column(nullable = false)
-    private double baseline;
+    @Column(precision=18, scale=6)
+    private BigDecimal baseline;
 
-    @Column(nullable = false)
-    private double actual;
+    @Column(precision=18, scale=6)
+    private BigDecimal actual;
 
-    @Column(nullable = false)
-    private double reduction;
+    @Column(precision=18, scale=6)
+    private BigDecimal reduction;
 
     @Column(nullable = false)
     private boolean certified;
