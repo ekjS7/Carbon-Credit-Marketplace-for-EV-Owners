@@ -27,9 +27,10 @@ public class AdminUserController {
     @GetMapping
     public ResponseEntity<?> getAllUsers() {
         List<User> users = userRepository.findAll();
-        if (users.isEmpty())
+        if (users.isEmpty()) {
             return ResponseEntity.status(HttpStatus.NO_CONTENT)
                     .body(Map.of("message", "No users found"));
+        }
 
         List<Map<String, Object>> data = users.stream().map(u -> Map.of(
                 "id", u.getId(),
@@ -46,23 +47,38 @@ public class AdminUserController {
         ));
     }
 
-    @PutMapping("/{id}")
-    public ResponseEntity<?> updateUser(@PathVariable Long id, @RequestBody UserUpdateRequest req) {
-        return userRepository.findById(id)
-                .<ResponseEntity<?>>map(user -> {
-                    if (req.getFullName() != null) user.setFullName(req.getFullName());
-                    if (req.getRole() != null) {
-                        String newRole = req.getRole().toUpperCase();
-                        Optional<Role> existingRole = roleRepository.findByName(newRole);
-                        Role role = existingRole.orElseGet(() -> roleRepository.save(new Role(null, newRole)));
-                        user.getRoles().clear();
-                        user.getRoles().add(role);
-                    }
-                    userRepository.save(user);
-                    return ResponseEntity.ok(Map.of("message", "User updated", "id", id));
-                })
-                .orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND)
-                        .body(Map.of("error", "User not found")));
+    // ✅ FIX: lỗi 500 khi get user by id
+    @GetMapping("/{id}")
+    public ResponseEntity<?> getUserById(@PathVariable Long id) {
+        try {
+            Optional<User> optionalUser = userRepository.findById(id);
+            if (optionalUser.isEmpty()) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body(Map.of("error", "User not found"));
+            }
+
+            User user = optionalUser.get();
+
+            // Tránh lỗi Lazy hoặc vòng lặp khi serialize
+            Map<String, Object> userData = new LinkedHashMap<>();
+            userData.put("id", user.getId());
+            userData.put("email", user.getEmail());
+            userData.put("fullName", user.getFullName());
+            userData.put("roles", user.getRoles() != null ? user.getRoles() : List.of());
+            userData.put("createdAt", user.getCreatedAt());
+
+            return ResponseEntity.ok(Map.of(
+                    "message", "Fetched user successfully",
+                    "data", userData
+            ));
+        } catch (Exception e) {
+            log.error("Error fetching user by ID {}: {}", id, e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of(
+                            "error", "Unexpected server error",
+                            "details", e.getMessage()
+                    ));
+        }
     }
 
     @PostMapping("/{id}/approve")
