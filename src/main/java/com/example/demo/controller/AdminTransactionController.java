@@ -17,53 +17,107 @@ public class AdminTransactionController {
 
     private final TransactionRepository transactionRepository;
 
+    // ✅ Lấy toàn bộ giao dịch
     @GetMapping
     public ResponseEntity<?> getAllTransactions() {
         log.info("Admin - Get all transactions");
 
         List<Transaction> transactions = transactionRepository.findAll();
-
         if (transactions.isEmpty()) {
             return ResponseEntity.status(HttpStatus.NO_CONTENT)
                     .body(Map.of("message", "No transactions found"));
         }
 
-        // ✅ Chuyển sang DTO thủ công (loại bỏ proxy)
         List<Map<String, Object>> data = new ArrayList<>();
-
         for (Transaction tx : transactions) {
             Map<String, Object> dto = new LinkedHashMap<>();
-
             dto.put("id", tx.getId());
-            dto.put("listingId", safeGetId(() -> tx.getListing().getId()));
-            dto.put("buyerId", safeGetId(() -> tx.getBuyer().getId()));
-            dto.put("sellerId", safeGetId(() -> tx.getSeller().getId()));
+            dto.put("buyerId", tx.getBuyer() != null ? tx.getBuyer().getId() : null);
+            dto.put("sellerId", tx.getSeller() != null ? tx.getSeller().getId() : null);
+            dto.put("listingId", tx.getListing() != null ? tx.getListing().getId() : null);
             dto.put("amount", tx.getAmount());
-            dto.put("status", tx.getStatus() != null ? tx.getStatus().toString() : null);
+            dto.put("status", tx.getStatus());
             dto.put("createdAt", tx.getCreatedAt());
-
             data.add(dto);
         }
 
-        Map<String, Object> response = new LinkedHashMap<>();
-        response.put("message", "Fetched all transactions successfully");
-        response.put("total", data.size());
-        response.put("data", data);
-
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(Map.of(
+                "message", "Fetched all transactions successfully",
+                "total", data.size(),
+                "data", data
+        ));
     }
 
-    // 🧩 Hàm helper tránh lỗi LazyInitialization
-    private Object safeGetId(Supplier<Object> supplier) {
-        try {
-            return supplier.get();
-        } catch (Exception e) {
-            return null;
-        }
+    // ✅ Lấy giao dịch theo ID
+    @GetMapping("/{id}")
+    public ResponseEntity<?> getTransactionById(@PathVariable Long id) {
+        log.info("Admin - Get transaction by ID: {}", id);
+        return transactionRepository.findById(id)
+                .map(tx -> Map.of(
+                        "id", tx.getId(),
+                        "buyerId", tx.getBuyer() != null ? tx.getBuyer().getId() : null,
+                        "sellerId", tx.getSeller() != null ? tx.getSeller().getId() : null,
+                        "listingId", tx.getListing() != null ? tx.getListing().getId() : null,
+                        "amount", tx.getAmount(),
+                        "status", tx.getStatus(),
+                        "createdAt", tx.getCreatedAt()
+                ))
+                .map(ResponseEntity::ok)
+                .orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body(Map.of("error", "Transaction not found")));
     }
 
-    @FunctionalInterface
-    private interface Supplier<T> {
-        T get();
+    // ✅ Hủy giao dịch
+    @PutMapping("/{id}/cancel")
+    public ResponseEntity<?> cancelTransaction(@PathVariable Long id) {
+        log.info("Admin - Cancel transaction ID: {}", id);
+        return transactionRepository.findById(id)
+                .map(tx -> {
+                    tx.setStatus(Transaction.TransactionStatus.CANCELLED);
+                    transactionRepository.save(tx);
+                    return ResponseEntity.ok(Map.of(
+                            "message", "Transaction cancelled successfully",
+                            "transactionId", tx.getId(),
+                            "status", tx.getStatus()
+                    ));
+                })
+                .orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body(Map.of("error", "Transaction not found")));
+    }
+
+    // ✅ Xác nhận giao dịch
+    @PutMapping("/{id}/confirm")
+    public ResponseEntity<?> confirmTransaction(@PathVariable Long id) {
+        log.info("Admin - Confirm transaction ID: {}", id);
+        return transactionRepository.findById(id)
+                .map(tx -> {
+                    tx.setStatus(Transaction.TransactionStatus.CONFIRMED);
+                    transactionRepository.save(tx);
+                    return ResponseEntity.ok(Map.of(
+                            "message", "Transaction confirmed successfully",
+                            "transactionId", tx.getId(),
+                            "status", tx.getStatus()
+                    ));
+                })
+                .orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body(Map.of("error", "Transaction not found")));
+    }
+
+    // ✅ Hoàn tất giao dịch
+    @PutMapping("/{id}/complete")
+    public ResponseEntity<?> completeTransaction(@PathVariable Long id) {
+        log.info("Admin - Complete transaction ID: {}", id);
+        return transactionRepository.findById(id)
+                .map(tx -> {
+                    tx.setStatus(Transaction.TransactionStatus.COMPLETED);
+                    transactionRepository.save(tx);
+                    return ResponseEntity.ok(Map.of(
+                            "message", "Transaction completed successfully",
+                            "transactionId", tx.getId(),
+                            "status", tx.getStatus()
+                    ));
+                })
+                .orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body(Map.of("error", "Transaction not found")));
     }
 }

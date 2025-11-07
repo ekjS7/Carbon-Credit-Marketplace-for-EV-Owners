@@ -17,50 +17,50 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 public class Transaction {
-    
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-    
+
+    // Người mua
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "buyer_id", nullable = false)
-    @NotNull(message = "Buyer is required")
+    @JoinColumn(name = "buyer_id", nullable = true)
     private User buyer;
-    
+
+    // Người bán
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "seller_id", nullable = false)
-    @NotNull(message = "Seller is required")
+    @JoinColumn(name = "seller_id", nullable = true)
     private User seller;
-    
+
+    // Bài đăng niêm yết
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "listing_id", nullable = false)
-    @NotNull(message = "Listing is required")
+    @JoinColumn(name = "listing_id", nullable = true)
     private Listing listing;
-    
+
+    // Số tiền giao dịch
     @Column(nullable = false, precision = 19, scale = 4)
     @NotNull(message = "Amount is required")
     @Positive(message = "Amount must be positive")
     private BigDecimal amount;
-    
+
+    // Trạng thái giao dịch
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 20, columnDefinition = "VARCHAR(20)")
+    @Column(nullable = false, length = 20)
     private TransactionStatus status = TransactionStatus.PENDING;
-    
+
     @Column(name = "created_at", nullable = false, updatable = false)
     @CreationTimestamp
     private LocalDateTime createdAt;
-    
+
     public enum TransactionStatus {
-        PENDING, CONFIRMED, CANCELLED, COMPLETED
+        PENDING,
+        CONFIRMED,
+        CANCELLED,
+        COMPLETED
     }
 
-    public void setStatus(String string) {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'setStatus'");
-    }
-
-    public void setStatus(TransactionStatus cancelled) {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'setStatus'");
+    // ✅ Setter hoạt động bình thường
+    public void setStatus(TransactionStatus status) {
+        this.status = status;
     }
 }

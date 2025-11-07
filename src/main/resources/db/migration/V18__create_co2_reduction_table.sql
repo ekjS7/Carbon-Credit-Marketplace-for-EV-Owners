@@ -1,9 +1,12 @@
 CREATE TABLE co2_reduction (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY,
-    user_id VARCHAR(255),
-    baseline DOUBLE,
-    actual DOUBLE,
-    reduction DOUBLE,
-    certified BOOLEAN,
-    status VARCHAR(255)
-)ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    user_id VARCHAR(255) NOT NULL,
+    baseline DOUBLE NOT NULL,
+    actual DOUBLE NOT NULL,
+    reduction DOUBLE NOT NULL,
+    certified BOOLEAN NOT NULL,
+    status VARCHAR(20) NOT NULL,
+    created_at DATETIME NOT NULL,
+    updated_at DATETIME,
+    version INT NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
