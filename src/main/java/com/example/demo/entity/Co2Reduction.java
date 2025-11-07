@@ -20,19 +20,26 @@ public class Co2Reduction {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false)
+    // user identifier (string as in original)
+    @Column(name = "user_id", nullable = false, length = 255)
     private String userId;
 
-    @Column(precision=18, scale=6)
+    // baseline and actual emissions (units: kg CO2)
+    @Column(precision = 18, scale = 6, nullable = false)
     private BigDecimal baseline;
 
-    @Column(precision=18, scale=6)
+    @Column(precision = 18, scale = 6, nullable = false)
     private BigDecimal actual;
 
-    @Column(precision=18, scale=6)
+    // reduction in kg CO2 (baseline - actual)
+    @Column(precision = 18, scale = 6, nullable = false)
     private BigDecimal reduction;
 
-    @Column(nullable = false)
+    // NEW: credits = reduction in tonnes (1 tonne CO2 = 1 credit)
+    // stored as decimal with 6 fractional digits (adjustable)
+    @Column(precision = 18, scale = 6)
+    private BigDecimal credits;
+
     private boolean certified;
 
     @Enumerated(EnumType.STRING)
