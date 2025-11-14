@@ -108,16 +108,23 @@ public class VnPayService {
             vnpParams.put("vnp_ReturnUrl", vnPayConfig.getReturnUrl());
             vnpParams.put("vnp_IpAddr", getIpAddress(servletRequest));
             
-            // Thời gian tạo
-            Calendar cld = Calendar.getInstance(TimeZone.getTimeZone("Etc/GMT+7"));
+            // Thời gian tạo - dùng timezone Việt Nam (GMT+7)
+            // VNPay yêu cầu format: yyyyMMddHHmmss (GMT+7)
+            TimeZone vnTimeZone = TimeZone.getTimeZone("Asia/Ho_Chi_Minh");
+            Calendar cld = Calendar.getInstance(vnTimeZone);
             SimpleDateFormat formatter = new SimpleDateFormat("yyyyMMddHHmmss");
+            formatter.setTimeZone(vnTimeZone);
+            
             String vnpCreateDate = formatter.format(cld.getTime());
             vnpParams.put("vnp_CreateDate", vnpCreateDate);
             
-            // Thời gian hết hạn (15 phút)
-            cld.add(Calendar.MINUTE, 15);
+            // Thời gian hết hạn (3 phút) - theo yêu cầu
+            cld.add(Calendar.MINUTE, 3);
             String vnpExpireDate = formatter.format(cld.getTime());
             vnpParams.put("vnp_ExpireDate", vnpExpireDate);
+            
+            log.info("VNPay payment created - CreateDate: {}, Expires at: {} (3 minutes)", 
+                    vnpCreateDate, vnpExpireDate);
 
             // 4. Build query string và tạo secure hash
             List<String> fieldNames = new ArrayList<>(vnpParams.keySet());
@@ -209,15 +216,17 @@ public class VnPayService {
     }
 
     /**
-     * Xử lý IPN callback từ VNPay
+     * Xử lý IPN callback từ VNPay hoặc Return URL
      */
     @Transactional
     public void processIpn(Map<String, String> params) {
         String vnpTxnRef = params.get("vnp_TxnRef");
+        String vnpResponseCode = params.get("vnp_ResponseCode");
         String vnpTransactionStatus = params.get("vnp_TransactionStatus");
         String vnpAmount = params.get("vnp_Amount");
 
-        log.info("Processing VNPay IPN for txnRef: {}, status: {}", vnpTxnRef, vnpTransactionStatus);
+        log.info("Processing VNPay payment for txnRef: {}, ResponseCode: {}, TransactionStatus: {}", 
+                vnpTxnRef, vnpResponseCode, vnpTransactionStatus);
 
         // Tìm transaction
         WalletTransaction transaction = walletTransactionRepository.findByExternalRef(vnpTxnRef)
@@ -229,40 +238,48 @@ public class VnPayService {
             return;
         }
 
-        // Kiểm tra số tiền
-        BigDecimal expectedAmount = transaction.getAmount().multiply(BigDecimal.valueOf(100));
-        BigDecimal receivedAmount = new BigDecimal(vnpAmount);
-        
-        if (expectedAmount.compareTo(receivedAmount) != 0) {
-            log.error("Amount mismatch for transaction {}: expected {}, received {}", 
-                    vnpTxnRef, expectedAmount, receivedAmount);
-            transaction.setStatus(WalletTransaction.TransactionStatus.FAILED);
-            transaction.setDescription(transaction.getDescription() + " - Lỗi: Số tiền không khớp");
-            walletTransactionRepository.save(transaction);
-            return;
+        // Kiểm tra số tiền (nếu có vnpAmount)
+        if (vnpAmount != null && !vnpAmount.isEmpty()) {
+            BigDecimal expectedAmount = transaction.getAmount().multiply(BigDecimal.valueOf(100));
+            BigDecimal receivedAmount = new BigDecimal(vnpAmount);
+            
+            if (expectedAmount.compareTo(receivedAmount) != 0) {
+                log.error("Amount mismatch for transaction {}: expected {}, received {}", 
+                        vnpTxnRef, expectedAmount, receivedAmount);
+                transaction.setStatus(WalletTransaction.TransactionStatus.FAILED);
+                transaction.setDescription(transaction.getDescription() + " - Lỗi: Số tiền không khớp");
+                walletTransactionRepository.save(transaction);
+                return;
+            }
         }
 
-        // Xử lý theo trạng thái
-        if ("00".equals(vnpTransactionStatus)) {
+        // Xử lý theo trạng thái - check cả ResponseCode và TransactionStatus
+        boolean isSuccess = ("00".equals(vnpResponseCode) || "00".equals(vnpTransactionStatus));
+        
+        if (isSuccess) {
             // Thanh toán thành công
             transaction.setStatus(WalletTransaction.TransactionStatus.SUCCESS);
-            transaction.setDescription(transaction.getDescription() + " - Thanh toán thành công");
+            transaction.setDescription(transaction.getDescription() + " - Thanh toán thành công qua VNPay");
             walletTransactionRepository.save(transaction);
 
             // Cộng tiền vào ví
             Wallet wallet = transaction.getWallet();
-            wallet.setBalance(wallet.getBalance().add(transaction.getAmount()));
+            BigDecimal oldBalance = wallet.getBalance();
+            wallet.setBalance(oldBalance.add(transaction.getAmount()));
             walletRepository.save(wallet);
 
-            log.info("Successfully processed VNPay topup for transaction {}: amount {}", 
-                    vnpTxnRef, transaction.getAmount());
+            log.info("✅ Successfully processed VNPay topup for transaction {}: amount {} VND. " +
+                    "Wallet balance: {} -> {}", 
+                    vnpTxnRef, transaction.getAmount(), oldBalance, wallet.getBalance());
         } else {
             // Thanh toán thất bại
+            String errorCode = vnpResponseCode != null ? vnpResponseCode : vnpTransactionStatus;
             transaction.setStatus(WalletTransaction.TransactionStatus.FAILED);
-            transaction.setDescription(transaction.getDescription() + " - Thanh toán thất bại (code: " + vnpTransactionStatus + ")");
+            transaction.setDescription(transaction.getDescription() + " - Thanh toán thất bại (code: " + errorCode + ")");
             walletTransactionRepository.save(transaction);
 
-            log.warn("VNPay payment failed for transaction {}: status code {}", vnpTxnRef, vnpTransactionStatus);
+            log.warn("❌ VNPay payment failed for transaction {}: ResponseCode={}, TransactionStatus={}", 
+                    vnpTxnRef, vnpResponseCode, vnpTransactionStatus);
         }
     }
 

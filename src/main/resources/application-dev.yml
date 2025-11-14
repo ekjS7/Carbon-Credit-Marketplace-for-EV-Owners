@@ -34,7 +34,7 @@ vnpay:
   hash-secret: 216M8O2A3QL1FESRY97R2MY2MIY32G0O  # Secret Key từ VNPay Sandbox
   pay-url: https://sandbox.vnpayment.vn/paymentv2/vpcpay.html
   return-url: http://localhost:5173/vnpay-return
-  ipn-url: http://localhost:8080/api/payment/vnpay/ipn
+  ipn-url: http://localhost:8083/api/payment/vnpay/ipn
   version: 2.1.0
   command: pay
   curr-code: VND

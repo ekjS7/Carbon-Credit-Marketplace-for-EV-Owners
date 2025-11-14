@@ -120,30 +120,51 @@ public class VnPayController {
 
     /**
      * Return URL - Frontend redirect về đây sau khi user hoàn thành thanh toán
-     * Endpoint này không bắt buộc vì frontend sẽ tự xử lý query params,
-     * nhưng có thể dùng để validate lại trạng thái
+     * QUAN TRỌNG: Xử lý payment ngay tại đây vì IPN có thể không được gọi (localhost)
      */
     @GetMapping("/return")
     public ResponseEntity<?> handleReturn(HttpServletRequest request) {
         try {
+            log.info("=== VNPay Return URL called ===");
             Map<String, String> params = extractParams(request);
+            
+            // Log để debug
+            log.info("Return params: vnp_TxnRef={}, vnp_ResponseCode={}, vnp_TransactionStatus={}", 
+                    params.get("vnp_TxnRef"), params.get("vnp_ResponseCode"), params.get("vnp_TransactionStatus"));
             
             // Verify signature
             if (!vnPayService.verifyIpn(params)) {
+                log.warn("Invalid VNPay return signature");
                 return ResponseEntity.badRequest()
                         .body(Map.of("error", "Invalid signature"));
             }
             
             String vnpTxnRef = params.get("vnp_TxnRef");
+            String vnpResponseCode = params.get("vnp_ResponseCode");
             String vnpTransactionStatus = params.get("vnp_TransactionStatus");
             String vnpAmount = params.get("vnp_Amount");
             
+            // QUAN TRỌNG: Xử lý payment ngay tại return URL
+            // Vì IPN có thể không được gọi nếu server là localhost
+            if ("00".equals(vnpResponseCode) && "00".equals(vnpTransactionStatus)) {
+                log.info("Processing payment from return URL for txnRef: {}", vnpTxnRef);
+                try {
+                    // Process payment (giống như IPN)
+                    vnPayService.processIpn(params);
+                    log.info("Payment processed successfully from return URL");
+                } catch (Exception e) {
+                    log.error("Error processing payment from return URL: {}", e.getMessage(), e);
+                    // Vẫn trả về success để user không bị redirect lỗi
+                }
+            }
+            
             return ResponseEntity.ok(Map.of(
-                    "success", "00".equals(vnpTransactionStatus),
-                    "txnRef", vnpTxnRef,
-                    "amount", vnpAmount,
-                    "status", vnpTransactionStatus,
-                    "message", "00".equals(vnpTransactionStatus) 
+                    "success", "00".equals(vnpResponseCode) && "00".equals(vnpTransactionStatus),
+                    "txnRef", vnpTxnRef != null ? vnpTxnRef : "",
+                    "amount", vnpAmount != null ? vnpAmount : "0",
+                    "status", vnpTransactionStatus != null ? vnpTransactionStatus : "",
+                    "responseCode", vnpResponseCode != null ? vnpResponseCode : "",
+                    "message", ("00".equals(vnpResponseCode) && "00".equals(vnpTransactionStatus))
                             ? "Payment successful" 
                             : "Payment failed or cancelled"
             ));

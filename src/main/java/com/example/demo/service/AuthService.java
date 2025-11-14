@@ -1,18 +1,22 @@
 package com.example.demo.service;
 
 import com.example.demo.entity.CarbonWallet;
+import com.example.demo.entity.Role;
 import com.example.demo.entity.User;
 import com.example.demo.entity.Wallet;
 import com.example.demo.repository.CarbonWalletRepository;
 import com.example.demo.repository.UserRepository;
 import com.example.demo.repository.WalletRepository;
+import com.example.demo.security.JwtUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -22,7 +26,8 @@ public class AuthService {
     private final UserRepository userRepository;
     private final WalletRepository walletRepository;
     private final CarbonWalletRepository carbonWalletRepository;
-    private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
+    private final PasswordEncoder passwordEncoder;
+    private final JwtUtil jwtUtil;
 
     /**
      * Đăng ký user mới và tự động tạo Wallet + CarbonWallet
@@ -64,5 +69,16 @@ public class AuthService {
 
     public boolean checkPassword(String rawPassword, String hashedPassword) {
         return passwordEncoder.matches(rawPassword, hashedPassword);
+    }
+
+    /**
+     * Generate JWT token for authenticated user
+     */
+    public String generateToken(User user) {
+        List<String> roles = user.getRoles().stream()
+                .map(Role::getName)
+                .collect(Collectors.toList());
+        
+        return jwtUtil.generateToken(user.getEmail(), user.getId(), roles);
     }
 }
